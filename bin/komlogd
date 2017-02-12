@@ -1,0 +1,22 @@
+#!/usr/bin/env python
+'''
+Komlog daemon
+
+'''
+
+
+import argparse
+from komlogd import main
+from komlogd.base import config
+
+
+def menu():
+    parser = argparse.ArgumentParser(description='Komlog agent')
+    parser.add_argument('-c','--config', required=False, help='Indicates the configuration file to use. Must be the absolute file path', default=config.get_default_config_file())
+    args = parser.parse_args()
+    return args 
+
+if __name__ == "__main__":
+    args=menu()
+    main.start_application(config_file=args.config)
+

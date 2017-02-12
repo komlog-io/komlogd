@@ -1,0 +1,11 @@
+build
+dist
+__pycache__/
+*.py[cod]
+*.swp
+*.swo
+*.mo
+*.egg-info
+*.egg
+*.EGG
+*.EGG-INFO
