@@ -19,6 +19,6 @@ with ``pip`` or ``easy_install``.
 Documentation
 -------------
 
-- `English docs <https:////github.com/komlog-io/komlogd/tree/master/docs/en/>`_.
-- `Spanish docs <https:////github.com/komlog-io/komlogd/tree/master/docs/es/>`_.
+- `English docs <https://komlogd.readthedocs.io>`_.
+- `Spanish docs <https://komlogd-es.readthedocs.io>`_.
 
