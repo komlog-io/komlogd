@@ -5,8 +5,8 @@ komlogd
    :alt: Join the chat at https://gitter.im/komlog_/komlog
    :target: https://gitter.im/komlog_/komlog?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
 
-Komlogd is the agent for communicating with `Komlog platform <http://www.komlog.io>`_, a distributed
-execution platform aimed at visualizing and sharing time series.
+Komlogd is the agent for communicating with `Komlog platform <http://www.komlog.io>`_, an event-based
+execution platform aimed at time series visualization and analysis.
 
 **Automatic install**::
 
