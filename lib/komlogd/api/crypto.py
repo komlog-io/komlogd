@@ -93,8 +93,8 @@ def decrypt(privkey, ciphertext):
         plaintext = privkey.decrypt(
             ciphertext,
             padding.OAEP(
-                mgf=padding.MGF1(algorithm=hashes.SHA1()),
-                algorithm=hashes.SHA1(),
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
                 label=None
             )
         )
@@ -106,8 +106,8 @@ def encrypt(pubkey, plaintext):
     try:
         ciphertext= pubkey.encrypt(plaintext=plaintext,
             padding=padding.OAEP(
-                mgf=padding.MGF1(algorithm=hashes.SHA1()),
-                algorithm=hashes.SHA1(),
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
                 label=None
             )
         )
