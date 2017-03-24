@@ -1,3 +1,4 @@
+import uuid
 import decimal
 import re
 import pandas as pd
@@ -59,6 +60,18 @@ def validate_dp_content(value):
         return True
     except (decimal.InvalidOperation, ValueError, TypeError):
         raise TypeError('datapoint value not valid')
+
+def is_message_sequence(value):
+    if not (isinstance(value,str) and len(value)==20):
+        return False
+    try:
+        s=uuid.UUID(value+'A'*12)
+        if s.version == 1:
+            return True
+        else:
+            return False
+    except ValueError:
+        return False
 
 def is_local_uri(uri):
     if isinstance(uri,str) and LOCALURI.search(uri):

@@ -25,8 +25,12 @@ def process_message_send_data_interval(msg, session, **kwargs):
     for row in msg.data[::-1]:
         session.metrics_store.store(metric=msg.metric, ts=row[0], content=row[1])
 
+def process_message_generic_response(msg, session, **kwargs):
+    logging.logger.debug('Received generic_response message')
+    logging.logger.debug(str(msg.__dict__))
 
 processing_map={
     Actions.SEND_MULTI_DATA:process_message_send_multi_data,
     Actions.SEND_DATA_INTERVAL:process_message_send_data_interval,
+    Actions.GENERIC_RESPONSE:process_message_generic_response,
 }

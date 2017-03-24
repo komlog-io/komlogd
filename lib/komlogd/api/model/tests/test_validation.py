@@ -228,3 +228,54 @@ class ApiModelValidationTest(unittest.TestCase):
         for content in contents:
             self.assertTrue(validation.validate_metric_type(content))
 
+    def test_is_message_sequence_failure(self):
+        ''' is_message_sequence should return False if param is no a valid sequence '''
+        params = [
+            'NaN',
+            decimal.Decimal('23'),
+            decimal.Decimal(23),
+            -1,
+            -1.232,
+            -1e2,
+            2**32,
+            '1'*2**7,
+            '1.1',
+            '1.5e+4',
+            '1.005E+43',
+            '-1.3e-34',
+            '1e4',
+            '-1e4',
+            '-1.3e-3',
+            '-1.3E-34',
+            '1E4',
+            '-1E4',
+            '-1.3E-3',
+            '+1.3E+3',
+            '1.5e4\n',
+            ' 23 ',
+            ' 32\n',
+            '32\n',
+            '1'*2**7+'1',
+            uuid.uuid1(),
+            uuid.uuid1().hex,
+            uuid.uuid4().hex[0:20],
+            uuid.uuid1().hex[0:10],
+            uuid.uuid4(),
+            {'set'},
+            {'a':'dict'},
+            ['a','list'],
+            ('a','tuple'),
+            None,
+            1,
+        ]
+        for param in params:
+            self.assertFalse(validation.is_message_sequence(param))
+
+    def test_is_message_sequence_success(self):
+        ''' is_message_sequence should return False if param is no a valid sequence '''
+        params = [
+            uuid.uuid1().hex[0:20],
+        ]
+        for param in params:
+            self.assertTrue(validation.is_message_sequence(param))
+

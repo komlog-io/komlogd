@@ -1,3 +1,4 @@
+import uuid
 import decimal
 import pandas as pd
 from komlogd.api.model import validation, orm
@@ -34,6 +35,30 @@ class KomlogMessage(metaclass=Catalog):
     def v(self, value):
         raise TypeError('Version cannot be modified')
 
+    @property
+    def seq(self):
+        return self._seq
+
+    @seq.setter
+    def seq(self, value):
+        if hasattr(self, '_seq'):
+            raise TypeError('Sequence cannot be modified')
+        elif validation.is_message_sequence(value):
+            self._seq = value
+        else:
+            raise TypeError('Invalid sequence')
+
+    @property
+    def irt(self):
+        return self._irt
+
+    @irt.setter
+    def irt(self, value):
+        if value is None or validation.is_message_sequence(value):
+            self._irt = value
+        else:
+            raise TypeError('Invalid irt')
+
     @classmethod
     def load_from_dict(cls, msg):
         if cls is KomlogMessage:
@@ -46,10 +71,76 @@ class KomlogMessage(metaclass=Catalog):
         else:
             raise NotImplementedError
 
+class GenericResponse(KomlogMessage):
+    _action_ = Actions.GENERIC_RESPONSE
+
+    def __init__(self, status, error, reason, seq=None, irt=None):
+        self.seq = seq if seq else uuid.uuid1().hex[0:20]
+        self.irt = irt
+        self.status = status
+        self.error = error
+        self.reason = reason
+
+    @property
+    def status(self):
+        return self._status
+
+    @status.setter
+    def status(self, value):
+        if isinstance(value, int) and value>0:
+            self._status=value
+        else:
+            raise TypeError('Invalid status')
+
+    @property
+    def error(self):
+        return self._error
+
+    @error.setter
+    def error(self, value):
+        if isinstance(value, int) and value>=0:
+            self._error=value
+        else:
+            raise TypeError('Invalid error')
+
+    @property
+    def reason(self):
+        return self._reason
+
+    @reason.setter
+    def reason(self, value):
+        if isinstance(value, str) or value is None:
+            self._reason=value
+        else:
+            raise TypeError('Invalid reason')
+
+    @classmethod
+    def load_from_dict(cls, msg):
+        if (isinstance(msg,dict)
+            and 'v' in msg
+            and 'action' in msg
+            and 'seq' in msg
+            and 'irt' in msg
+            and 'payload' in msg
+            and isinstance(msg['v'],int)
+            and isinstance(msg['action'],str) and msg['action']==cls._action_.value
+            and isinstance(msg['payload'],dict)
+            and 'status' in msg['payload']
+            and 'error' in msg['payload']
+            and 'reason' in msg['payload']):
+            status=msg['payload']['status']
+            error=msg['payload']['error']
+            reason=msg['payload']['reason']
+            return cls(status=status, error=error, reason=reason, seq=msg['seq'], irt=msg['irt'])
+        else:
+            raise TypeError('Could not load message, invalid type')
+
 class SendDsData(KomlogMessage):
     _action_ = Actions.SEND_DS_DATA
 
-    def __init__(self, uri, ts, content):
+    def __init__(self, uri, ts, content, seq=None, irt=None):
+        self.seq=seq if seq else uuid.uuid1().hex[0:20]
+        self.irt = irt
         self.uri=uri
         self.ts=ts
         self.content=content
@@ -86,6 +177,8 @@ class SendDsData(KomlogMessage):
         return {
             'v':self.v,
             'action':self.action.value,
+            'seq':self.seq,
+            'irt':self.irt,
             'payload':{
                 'uri':self.uri,
                 'ts':self.ts.isoformat(),
@@ -96,7 +189,9 @@ class SendDsData(KomlogMessage):
 class SendDpData(KomlogMessage):
     _action_ = Actions.SEND_DP_DATA
 
-    def __init__(self, uri, ts, content):
+    def __init__(self, uri, ts, content, seq=None, irt=None):
+        self.seq=seq if seq else uuid.uuid1().hex[0:20]
+        self.irt=irt
         self.uri=uri
         self.ts=ts
         self.content=content
@@ -133,6 +228,8 @@ class SendDpData(KomlogMessage):
         return {
             'v':self.v,
             'action':self.action.value,
+            'seq':self.seq,
+            'irt':self.irt,
             'payload':{
                 'uri':self.uri,
                 'ts':self.ts.isoformat(),
@@ -143,7 +240,9 @@ class SendDpData(KomlogMessage):
 class SendMultiData(KomlogMessage):
     _action_ = Actions.SEND_MULTI_DATA
 
-    def __init__(self, ts, uris):
+    def __init__(self, ts, uris, seq=None, irt=None):
+        self.seq=seq if seq else uuid.uuid1().hex[0:20]
+        self.irt=irt
         self.ts=ts
         self.uris=uris
 
@@ -182,6 +281,8 @@ class SendMultiData(KomlogMessage):
         if (isinstance(msg, dict)
             and 'v' in msg
             and 'action' in msg
+            and 'seq' in msg
+            and 'irt' in msg
             and 'payload' in msg
             and isinstance(msg['v'],int) and msg['v']==cls._version_
             and isinstance(msg['action'],str) and msg['action']==cls._action_.value
@@ -190,7 +291,7 @@ class SendMultiData(KomlogMessage):
             and 'uris' in msg['payload']):
             ts=msg['payload']['ts']
             uris=msg['payload']['uris']
-            return cls(ts=ts,uris=uris)
+            return cls(ts=ts,uris=uris, seq=msg['seq'], irt=msg['irt'])
         else:
             raise TypeError('Could not load message, invalid type')
 
@@ -201,6 +302,8 @@ class SendMultiData(KomlogMessage):
         return {
             'v':self.v,
             'action':self.action.value,
+            'seq':self.seq,
+            'irt':self.irt,
             'payload':{
                 'ts':self.ts.isoformat(),
                 'uris':ds_uris+dp_uris
@@ -210,7 +313,9 @@ class SendMultiData(KomlogMessage):
 class HookToUri(KomlogMessage):
     _action_ = Actions.HOOK_TO_URI
 
-    def __init__(self, uri):
+    def __init__(self, uri, seq=None, irt=None):
+        self.seq=seq if seq else uuid.uuid1().hex[0:20]
+        self.irt=irt
         self.uri=uri
 
     @property
@@ -227,6 +332,8 @@ class HookToUri(KomlogMessage):
         return {
             'v':self.v,
             'action':self.action.value,
+            'seq':self.seq,
+            'irt':self.irt,
             'payload':{
                 'uri':self.uri
             }
@@ -235,7 +342,9 @@ class HookToUri(KomlogMessage):
 class UnHookFromUri(KomlogMessage):
     _action_ = Actions.UNHOOK_FROM_URI
 
-    def __init__(self, uri):
+    def __init__(self, uri, seq=None, irt=None):
+        self.seq=seq if seq else uuid.uuid1().hex[0:20]
+        self.irt=irt
         self.uri = uri
 
     @property
@@ -252,6 +361,8 @@ class UnHookFromUri(KomlogMessage):
         return {
             'v':self.v,
             'action':self.action.value,
+            'seq':self.seq,
+            'irt':self.irt,
             'payload':{
                 'uri':self.uri
             }
@@ -260,7 +371,9 @@ class UnHookFromUri(KomlogMessage):
 class RequestData(KomlogMessage):
     _action_ = Actions.REQUEST_DATA
 
-    def __init__(self, uri, start=None, end=None, count=None):
+    def __init__(self, uri, start=None, end=None, count=None, seq=None, irt=None):
+        self.seq=seq if seq else uuid.uuid1().hex[0:20]
+        self.irt=irt
         self.uri = uri
         self.start = start
         self.end = end
@@ -315,6 +428,8 @@ class RequestData(KomlogMessage):
         return {
             'v':self.v,
             'action':self.action.value,
+            'seq':self.seq,
+            'irt':self.irt,
             'payload':{
                 'uri':self._uri,
                 'start':self._start.isoformat() if self._start else None,
@@ -326,7 +441,9 @@ class RequestData(KomlogMessage):
 class SendDataInterval(KomlogMessage):
     _action_ = Actions.SEND_DATA_INTERVAL
 
-    def __init__(self, metric, start, end, data):
+    def __init__(self, metric, start, end, data, seq=None, irt=None):
+        self.seq=seq if seq else uuid.uuid1().hex[0:20]
+        self.irt=irt
         self.metric = metric
         self.start = start
         self.end = end 
@@ -387,6 +504,8 @@ class SendDataInterval(KomlogMessage):
         if (isinstance(msg,dict)
             and 'v' in msg
             and 'action' in msg
+            and 'seq' in msg
+            and 'irt' in msg
             and 'payload' in msg
             and isinstance(msg['v'],int) and msg['v']==cls._version_
             and isinstance(msg['action'],str) and msg['action']==cls._action_.value
@@ -407,7 +526,7 @@ class SendDataInterval(KomlogMessage):
             start=msg['payload']['start']
             end=msg['payload']['end']
             data=msg['payload']['data']
-            return cls(metric=metric, start=start, end=end, data=data)
+            return cls(metric=metric,start=start,end=end,data=data,seq=msg['seq'],irt=msg['irt'])
         else:
             raise TypeError('Could not load message, invalid type')
 

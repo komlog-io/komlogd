@@ -9,6 +9,7 @@ class Actions(Enum):
     UNHOOK_FROM_URI         = 'unhook_from_uri'
     REQUEST_DATA            = 'request_data'
     SEND_DATA_INTERVAL      = 'send_data_interval'
+    GENERIC_RESPONSE        = 'generic_response'
 
 @unique
 class Metrics(Enum):
