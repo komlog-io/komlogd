@@ -14,8 +14,8 @@ def process_message_send_multi_data(msg, session, **kwargs):
             metric=Datapoint(uri=item['uri'])
         session.metrics_store.store(metric, msg.ts, item['content'])
         metrics.append(metric)
-    impulse_methods=session.impulses.get_impulses(metrics=metrics)
-    for item in impulse_methods:
+    transfer_methods=session.transfer_methods.get_transfer_methods(metrics=metrics)
+    for item in transfer_methods:
         logging.logger.debug('Requesting execution of method: '+item.f.__name__)
         asyncio.ensure_future(item.f(ts=msg.ts, metrics=metrics, session=session))
 

@@ -146,32 +146,32 @@ To achieve this:
 Replacing *<path_to_file>* with the file's path.
 You can add as many *external_job_file* statements as you need.
 
-Impulse methods configuration
+Transfer methods configuration
 -----------------------------
 
 Komlog allows the user to subscribe to any of his *uris* and receive notifications when
 new data is received on them.
 
-An *impulse method* is the function that is executed when komlogd receives notifications
+A *transfer method* is the function that is executed when komlogd receives notifications
 about subscribed uris.
 
-With *impulse methods* you can automate tasks, generate alarms, communicate with external
+With *transfer methods* you can automate tasks, generate alarms, communicate with external
 services, analyze data in real time, and basically any task associated to events.
 
-On chapter :ref:`impulse_methods` we explain how to create this type of functions.
+On chapter :ref:`transfer_methods` we explain how to create this type of functions.
 
-To add a file with impulse methods to komlogd configuration we use the **impulses** block::
+To add a file with transfer methods to komlogd configuration we use the **transfers** block::
 
-    - impulses:
+    - transfers:
         enabled: yes
         filename: <path_to_file>
 
-The *impulses block* parameters are:
+The *transfers block* parameters are:
 
 * **enabled**: To enable or disable the block. Can take values *yes* or *no*.
-* **filename**: Path to the impulses methods file. Path can be absolute or relative to the komlogd configuration directory.
+* **filename**: Path to the transfer methods file. Path can be absolute or relative to the komlogd configuration directory.
 
-You can add as many *impulses blocks* as you need.
+You can add as many *transfers blocks* as you need.
 
 Log configuration
 -----------------

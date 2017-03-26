@@ -166,10 +166,10 @@ que queremos ejecutar.
 
 Podemos añadir tantos bloques *external_job_file* al archivo *komlogd.yaml* como queramos.
 
-Configuración de funciones impulso
-----------------------------------
+Configuración de funciones de transferencia
+-------------------------------------------
 
-Una *función impulso* es una función que se ejecuta como respuesta a una actualización de los
+Una *función de transferencia* es una función que se ejecuta como respuesta a una actualización de los
 datos de una *uri*.
 
 komlogd permite a un usuario suscribirse a cualquiera de sus *uris*
@@ -179,25 +179,25 @@ Esta funcionalidad la podemos utilizar para realizar automatización de tareas, 
 comunicación con servicios externos, análisis de datos en tiempo real, y en definitiva cualquier tarea
 que se nos ocurra que pueda estar asociada a eventos.
 
-En el apartado :ref:`funciones_impulso` se explica cómo crear este tipo de funciones
+En el apartado :ref:`funciones_de_transferencia` se explica cómo crear este tipo de funciones
 correctamente.
 
-Una vez que tenemos el archivo con las funciones impulso, para añadirlas a la configuración de komlogd
-editaríamos el archivo de configuración (**komlogd.yaml**) y añadiríamos un nuevo bloque **impulses**
+Una vez que tenemos el archivo con las funciones de transferencia, para añadirlas a la configuración de komlogd
+editaríamos el archivo de configuración (**komlogd.yaml**) y añadiríamos un nuevo bloque **transfers**
 como el siguiente::
 
-    - impulses:
+    - transfers:
         enabled: yes
         filename: <path_to_file>
 
-Los parametros del *bloque impulses* son los siguientes:
+Los parametros del *bloque transfers* son los siguientes:
 
-* **enabled**: Puede tomar los valores *yes* o *no*. Indica si el bloque *impulses* está habilitado.
+* **enabled**: Puede tomar los valores *yes* o *no*. Indica si el bloque *transfers* está habilitado.
 
-* **filename**: Ruta del archivo que contiene las funciones *impulso*. La ruta puede ser absoluta o relativa al directorio
+* **filename**: Ruta del archivo que contiene las *funciones de transferencia*. La ruta puede ser absoluta o relativa al directorio
   de configuración de komlogd.
 
-Al igual que en el caso de los jobs, se pueden añadir tantos *bloques impulses* como se desee.
+Al igual que en el caso de los jobs, se pueden añadir tantos *bloques transfers* como se desee.
 
 Configuración del nivel de log
 ------------------------------

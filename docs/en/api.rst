@@ -172,14 +172,14 @@ The timestamp can be any of these types:
 
 **It is mandatory to include the time zone and maximum precision is milliseconds**.
 
-.. _impulse_methods:
+.. _transfer_methods:
 
-Impulse methods
+Transfer methods
 ---------------
 
-You can execute a function every time a metric is updated. We call this type of functions *impulse methods*.
+You can execute a function every time a metric is updated. We call this type of functions *transfer methods*.
 
-To create impulse methods, simply add the *@impulsemethod* decorator to the function. You can pass the following
+To create transfer methods, simply add the *@transfermethod* decorator to the function. You can pass the following
 parameters to the decorator:
 
 * **uris**: list with metrics uris we want to subscribe our method to.
@@ -187,29 +187,29 @@ parameters to the decorator:
 * **min_exec_delta**: min time between execs. By default, komlogd will run the method every time a metric is updated. With this parameter you can tell
   komlogd to run it at most once in *min_exec_delta* interval. The parameter needs a pandas.Timedelta object.
 
-Here you can see how to create an impulse method:
+Here you can see how to create an transfer method:
 
 .. code:: python
 
-    from komlogd.api.impulse import impulsemethod
+    from komlogd.api.transfer_methods import transfermethod
 
-    @impulsemethod(uris=['cpu.system','cpu.user'])
+    @transfermethod(uris=['cpu.system','cpu.user'])
     async def example():
         print('hello komlog.')
 
 
 In this example, every time metrics *cpu.system* and *cpu.user* are updated, komlogd will run the function *example*.
-**You can apply the @impulsemethod decorator to normal functions or coroutines**.
+**You can apply the @transfermethod decorator to normal functions or coroutines**.
 
-An impulse method can fire an update to any metric in our data model. For this, the method must return a dictionary
+A transfer method can fire an update to any metric in our data model. For this, the method must return a dictionary
 with the samples to send to Komlog:
 
 .. code:: python
 
-    from komlogd.api.impulse import impulsemethod
+    from komlogd.api.transfer_methods import transfermethod
     from komlogd.api.model.orm import DataRequirements, Datasource, Sample
 
-    @impulsemethod(uris=['cpu.system','cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
+    @transfermethod(uris=['cpu.system','cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
     def summary(ts, updated, data, others):
         result={'samples':[]}
         for metric in updated:
@@ -226,11 +226,11 @@ from that operations. This method will run every time *cpu.system* or *cpu.user*
 
 Here, we explain the last example in detail:
 
-* First, we apply to our *summary* function the decorator *@impulsemethod* with these parameters:
+* First, we apply to our *summary* function the decorator *@transfermethod* with these parameters:
     * **uris=['cpu.system','cpu.user']**. We set the metrics the method is subscribed to.
     * **data_reqs=DataRequirements(past_delta=pd.Timedelta('1h'))**. Here we indicate the method needs a data interval of 1h for each metric.
 * *summary* function receives some parameters (These parameters are **optional**. We have to declare them only if we need them.):
-    * **ts**: pd.Timestamp object. The timestamp of the sample that fired the impulse method execution.
+    * **ts**: pd.Timestamp object. The timestamp of the sample that fired the transfer method execution.
     * **updated**: list of metrics updated.
     * **data**: A dictionary whose keys are the subscribed metrics. Each value of the data dictionary is a pandas.Series object with the values of the metric.
     * **others**: list with metrics subscribed but not updated in this execution. updated + others will be all subscribed metrics.
@@ -244,15 +244,15 @@ Here, we explain the last example in detail:
 * Return the result dictionary with the samples to send to Komlog.
 
 
-You can stack the *impulsemethod* decorator as many times as you need. An impulse method will be created
-each time the decorator is applied. So for the previous example, if we want to create impulse methods for two
+You can stack the *transfermethod* decorator as many times as you need. A transfer method will be created
+each time the decorator is applied. So for the previous example, if we want to create transfer methods for two
 groups of metrics, we can decorate the function once per group instead of creating two functions for the same
 operation.
 
 .. code:: python
 
-    @impulsemethod(uris=['host1.cpu.system','host1.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
-    @impulsemethod(uris=['host2.cpu.system','host2.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
+    @transfermethod(uris=['host1.cpu.system','host1.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
+    @transfermethod(uris=['host2.cpu.system','host2.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
     def summary(ts, updated, data, others):
         ...
 
@@ -269,7 +269,7 @@ Users can share metrics through Komlog in real time with other users.
     be shared too, no matter if them already existed or not when the root metric was
     shared.
 
-    Sharing metrics read only means an *impulse method* cannot modify any remote metric, so
+    Sharing metrics read only means a *transfer method* cannot modify any remote metric, so
     if they return samples to update remote metrics, they will be dropped. Users **can only
     modify their own data model.**
 
@@ -278,16 +278,16 @@ tell komlogd you want to subscribe to a remote uri is prepending the username to
 
     remote_uri = 'user:uri'
 
-For example, if user *my_friend* were sharing metrics *host1.cpu*, we could subscribe an
-impulse method to *host1.cpu.system* and *host1.cpu.user* this way:
+For example, if user *my_friend* were sharing metrics *host1.cpu*, we could subscribe a
+transfer method to *host1.cpu.system* and *host1.cpu.user* this way:
 
 .. code:: python
 
-    @impulsemethod(uris=['my_friend:host1.cpu.system','my_friend:host1.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
+    @transfermethod(uris=['my_friend:host1.cpu.system','my_friend:host1.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
     def summary(ts, updated, data, others):
         ...
 
-An impulse method can subscribe to both local and remote metrics:
+A transfer method can subscribe to both local and remote metrics:
 
 .. code:: python
 
@@ -298,7 +298,7 @@ An impulse method can subscribe to both local and remote metrics:
         'host1.cpu.user'
     ]
 
-    @impulsemethod(uris=uris, data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
+    @transfermethod(uris=uris, data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
     def summary(ts, updated, data, others):
         ...
 

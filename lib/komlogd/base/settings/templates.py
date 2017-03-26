@@ -4,8 +4,6 @@ Templates file
 '''
 
 TEMPLATE_CONFIG_FILE='''
-
-
 # komlogd configuration file
 
 
@@ -54,16 +52,16 @@ TEMPLATE_CONFIG_FILE='''
 #        - '* * * * *'
 
 
-# Create an entry for each python file with impulses you want to load. The following is an example:
+# Create an entry for each python file with transfer methdos you want to load. The following is an example:
 
-#- impulses:
+#- transfers:
 #   enabled: yes
-#   filename: /home/komlog/.komlogd/impulses/impulse_methods.py 
+#   filename: /home/komlog/.komlogd/transfers/transfer_methods.py 
 
 # In the previous example, we can indicate the filename with a relative path too from the application directory.
 # Application directory is the one where the configuration file is located.
 #So, for example, if application directory is /home/komlog/.komlogd, we can indicate the previous file with:
-# filename: impulses/impulse_methods.py
+# filename: transfers/transfer_methods.py
 
 '''
 

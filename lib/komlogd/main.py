@@ -11,7 +11,7 @@ import functools
 import traceback
 from komlogd.base import config, logging
 from komlogd.scheduler import main as schmain
-from komlogd.impulses import main as impmain
+from komlogd.transfer_methods import main as tfmain
 from komlogd.web import main as webmain
 
 app = None
@@ -27,7 +27,7 @@ class Application():
             config.load_application_config(filename=config_file)
             logging.initialize_logger()
             schmain.initialize_scheduler()
-            impmain.load_impulse_files()
+            tfmain.load_transfer_methods_files()
             webmain.initialize_komlog_session()
         except Exception as e:
             print ('Error initializing komlogd.')

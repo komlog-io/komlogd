@@ -6,7 +6,7 @@ import pandas as pd
 from komlogd.api import logging
 from komlogd.api import crypto
 from komlogd.api.processing import message as procmsg
-from komlogd.api.model import messages, exceptions, orm, store, impulses
+from komlogd.api.model import messages, exceptions, orm, store, transfer_methods
 
 KOMLOG_LOGIN_URL = 'https://www.komlog.io/login'
 KOMLOG_WS_URL = 'https://agents.komlog.io/'
@@ -104,7 +104,7 @@ class KomlogSession:
                 elif not self.ws:
                     logging.logger.debug('Restarting websocket connection')
                     await self._ws_connect()
-                self._load_impulses()
+                self._load_transfer_methods()
                 self._ws_reconnected()
                 async for msg in self.ws:
                     logging.logger.debug('Message received from server: '+str(msg))
@@ -129,11 +129,11 @@ class KomlogSession:
                 if not self.stop_f:
                     await asyncio.sleep(15)
 
-    def _load_impulses(self):
-        logging.logger.debug('Loading impulse methods')
-        self.impulses=impulses.Impulses(owner=self.username)
-        for item in impulses.static_impulses.get_impulses():
-            self.impulses.set_impulse(item)
+    def _load_transfer_methods(self):
+        logging.logger.debug('Loading transfer methods')
+        self.transfer_methods=transfer_methods.TransferMethodsIndex(owner=self.username)
+        for item in transfer_methods.static_transfer_methods.get_transfer_methods():
+            self.transfer_methods.set_transfer_method(item)
             for metric in item.metrics:
                 self._hooked_metrics.add(metric)
             if item.data_reqs is not None:
@@ -196,7 +196,7 @@ class KomlogSession:
         for metric in h_metrics:
             self._hooked_metrics.add(metric)
         if on_update and len(h_metrics)>0:
-            self.impulses.set_impulse(metrics=h_metrics, func=on_update)
+            self.transfer_methods.set_transfer_method(metrics=h_metrics, func=on_update)
 
     def unhook(self, metrics):
         uh_metrics=[]

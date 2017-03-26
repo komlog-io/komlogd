@@ -1,6 +1,6 @@
 '''
 
-Functions for requesting the metrics store
+transfermethod decorator
 
 
 '''
@@ -11,10 +11,10 @@ import inspect
 import pandas as pd
 from functools import wraps
 from komlogd.api import logging
-from komlogd.api.model import impulses, orm
+from komlogd.api.model import transfer_methods, orm
 
 
-class impulsemethod:
+class transfermethod:
 
     def __init__(self, uris, min_exec_delta=None, data_reqs=None):
         if not isinstance(uris, list):
@@ -48,7 +48,7 @@ class impulsemethod:
         raise TypeError('Invalid data_reqs parameter')
 
     def __call__(self, f):
-        logging.logger.debug('registering static impulse, f: '+f.__name__+' uris: '+str(self.uris))
+        logging.logger.debug('registering static transfer method, f: '+f.__name__+' uris: '+str(self.uris))
         @wraps(f)
         async def decorated(*args, **kwargs):
             now=pd.Timestamp('now',tz='utc')
@@ -78,9 +78,9 @@ class impulsemethod:
                 if isinstance(result['samples'], list):
                     kwargs['session'].send_samples(result['samples'])
                 else:
-                    logging.logger.error('Impulse function response unsupported, samples field should be a list of Samples')
+                    logging.logger.error('Transfer method response unsupported, samples field should be a list of Samples')
         self.funcargs=inspect.signature(f).parameters
         self.f = decorated
-        impulses.static_impulses.set_impulse(impulse_method=self)
+        transfer_methods.static_transfer_methods.set_transfer_method(transfer_method=self)
         return f
 

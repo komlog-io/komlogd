@@ -206,48 +206,48 @@ Hay que tener en cuenta que **es necesario incluir la zona horaria y que la
 precisión máxima aceptada es de milisegundos**.
 
 
-.. _funciones_impulso:
+.. _funciones_de_transferencia:
 
-Funciones impulso
------------------
+Funciones de transferencia
+--------------------------
 
 En komlogd existe la posibilidad de ejecutar una función cada vez que llegue una muestra de una métrica. A este
-tipo de funciones les denominamos *funciones impulso*.
+tipo de funciones les denominamos *funciones de transferencia*.
 
-Para crear una función impulso simplemente hay que aplicarle el decorador *@impulsemethod*. Este decorador admite los
+Para crear una función de transferencia simplemente hay que aplicarle el decorador *@transfermethod*. Este decorador admite los
 siguientes parámetros:
 
 * **uris**: lista con las uris de las métricas a las que queremos suscribirnos.
 * **data_reqs**: objeto de tipo DataRequirements, donde le indicamos los requisitos a nivel de datos que tiene la función para
   su correcta ejecución.
 * **min_exec_delta**: objecto tipo pandas.Timedelta. Este parámetro indica el periodo mínimo entre ejecuciones de la función. Por defecto, komlogd ejecutará
-  la función impulso cada vez que se reciban muestras en los métricas suscritas, sin embago, este comportamiento puede no siempre
+  la función de transferencia cada vez que se reciban muestras en los métricas suscritas, sin embago, este comportamiento puede no siempre
   ser el deseado, por lo que este parámetro indica a komlogd que entre ejecución y ejecución al menos debe haber pasado el tiempo especificado.
 
-El siguiente código muestra como se crearía una función impulso:
+El siguiente código muestra como se crearía una función de transferencia:
 
 .. code:: python
 
-    from komlogd.api.impulse import impulsemethod
+    from komlogd.api.transfer_methods import transfermethod
 
-    @impulsemethod(uris=['cpu.system','cpu.user'])
+    @transfermethod(uris=['cpu.system','cpu.user'])
     async def example():
         print('hello komlog.')
 
 
 En el ejemplo anterior, cada vez que se actualicen las métricas *cpu.system* y *cpu.user* komlogd ejecutaría la función *example*.
-Como se puede ver, example es una corrutina. **El decorador @impulsemethod puede aplicarse tanto a funciones normales o como a corrutinas**.
+Como se puede ver, example es una corrutina. **El decorador @transfermethod puede aplicarse tanto a funciones normales o como a corrutinas**.
 
 
-Una función impulso puede provocar la actualización de métricas en nuestro modelo de datos. Para ello debe devolver
+Una función de transferencia puede provocar la actualización de métricas en nuestro modelo de datos. Para ello debe devolver
 una lista con los samples que se deben enviar a Komlog:
 
 .. code:: python
 
-    from komlogd.api.impulse import impulsemethod
+    from komlogd.api.transfer_methods import transfermethod
     from komlogd.api.model.orm import Datasource, Sample
 
-    @impulsemethod(uris=['cpu.system','cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
+    @transfermethod(uris=['cpu.system','cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
     def summary(ts, updated, data, others):
         result={'samples':[]}
         for metric in updated:
@@ -264,7 +264,7 @@ La función se ejecutará cada vez que se reciban datos.
 
 A continuación la comentamos en detalle.
 
-* En primer lugar aplicamos a la función *summary* el decorador *@impulsemethod* con los siguientes parámetros:
+* En primer lugar aplicamos a la función *summary* el decorador *@transfermethod* con los siguientes parámetros:
     * **uris=['cpu.system','cpu.user']**. Con este parámetro indicamos que la función se suscribe a las métricas *cpu.system* y
       *cpu.user*.
     * **data_reqs=DataRequirements(past_delta=pd.Timedelta('1h'))**. Aquí le indicamos que la función necesita 1 hora de datos
@@ -283,12 +283,12 @@ A continuación la comentamos en detalle.
     * Añadimos el sample al listado de samples del diccionario result.
 * Por último la función devuelve el diccionario *result*, con los samples a enviar a Komlog.
 
-Se puede aplicar el decorador *impulsemethod* a una función tantas veces como se necesite, simplemente apilando las llamadas al mismo. Por ejemplo, en la función anterior, si quisiésemos aplicar la función a dos grupos de métricas diferentes, bastaría con aplicar el decorador a la función una vez por cada grupo de métricas en lugar de crear dos funciones para la misma operación.
+Se puede aplicar el decorador *transfermethod* a una función tantas veces como se necesite, simplemente apilando las llamadas al mismo. Por ejemplo, en la función anterior, si quisiésemos aplicar la función a dos grupos de métricas diferentes, bastaría con aplicar el decorador a la función una vez por cada grupo de métricas en lugar de crear dos funciones para la misma operación.
 
 .. code:: python
 
-    @impulsemethod(uris=['host1.cpu.system','host1.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
-    @impulsemethod(uris=['host2.cpu.system','host2.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
+    @transfermethod(uris=['host1.cpu.system','host1.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
+    @transfermethod(uris=['host2.cpu.system','host2.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
     def summary(ts, updated, data, others):
         ...
 
@@ -305,7 +305,7 @@ Komlog permite compartir partes del modelo de datos con otros usuarios.
     métricas anidadas en el modelo de datos del usuario, sin importar si ya existían o no en el
     momento de compartirla.
 
-    Al compartir las métricas en modo solo lectura, si una *función impulso* trata de actualizar
+    Al compartir las métricas en modo solo lectura, si una *función de transferencia* trata de actualizar
     una métrica remota, dicha actualización fallará. El usuario **sólo puede modificar su
     modelo de datos**.
 
@@ -315,15 +315,15 @@ La forma para indicar una métrica remota es anteponer el usuario al nombre de l
     uri_remota = 'user:uri'
 
 Por ejemplo, si el usuario *my_friend* nos compartiese la uri *host1.cpu*, podríamos crear
-una función impulso que se suscribiese a *host1.cpu.system* y *host1.cpu.user* de la siguiente forma:
+una función de transferencia que se suscribiese a *host1.cpu.system* y *host1.cpu.user* de la siguiente forma:
 
 .. code:: python
 
-    @impulsemethod(uris=['my_friend:host1.cpu.system','my_friend:host1.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
+    @transfermethod(uris=['my_friend:host1.cpu.system','my_friend:host1.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
     def summary(ts, updated, data, others):
         ...
 
-Un impulse method se puede suscribir a métricas propias y remotas a la vez:
+Un transfer method se puede suscribir a métricas propias y remotas a la vez:
 
 .. code:: python
 
@@ -334,7 +334,7 @@ Un impulse method se puede suscribir a métricas propias y remotas a la vez:
         'host1.cpu.user'
     ]
 
-    @impulsemethod(uris=uris, data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
+    @transfermethod(uris=uris, data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
     def summary(ts, updated, data, others):
         ...
 
