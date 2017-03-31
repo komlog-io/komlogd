@@ -56,18 +56,18 @@ class transfermethod:
                 logging.logger.debug('min_exec_delta condition not satisfied, not executing '+f.__name__)
                 return
             funcargs={}
-            arg_metrics_uris=[orm.get_global_uri(metric,owner=kwargs['session'].username) for metric in kwargs['metrics']]
+            arg_metrics_uris=[orm.get_global_uri(metric,owner=kwargs['session']._username) for metric in kwargs['metrics']]
             for arg in self.funcargs:
                 if arg == 'ts':
                     funcargs[arg]=kwargs[arg]
                 elif arg == 'updated':
-                    funcargs[arg]=[metric for metric in self.metrics if orm.get_global_uri(metric,owner=kwargs['session'].username) in arg_metrics_uris]
+                    funcargs[arg]=[metric for metric in self.metrics if orm.get_global_uri(metric,owner=kwargs['session']._username) in arg_metrics_uris]
                 elif arg == 'others':
-                    funcargs[arg]=[metric for metric in self.metrics if orm.get_global_uri(metric,owner=kwargs['session'].username) not in arg_metrics_uris]
+                    funcargs[arg]=[metric for metric in self.metrics if orm.get_global_uri(metric,owner=kwargs['session']._username) not in arg_metrics_uris]
                 elif arg == 'data':
                     data={}
                     for metric in self.metrics:
-                        data[metric]=kwargs['session'].metrics_store.get_serie(metric=metric)
+                        data[metric]=kwargs['session']._metrics_store.get_serie(metric=metric)
                     funcargs[arg]=data
             self.last_exec=pd.Timestamp('now',tz='utc')
             if asyncio.iscoroutinefunction(f):

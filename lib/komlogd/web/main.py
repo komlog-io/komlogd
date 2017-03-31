@@ -16,8 +16,8 @@ def initialize_komlog_session():
     KomlogSession = session.KomlogSession(username=username[0], privkey=privkey)
 
 async def start_komlog_session():
-    await KomlogSession.login()
-    await KomlogSession.t_loop
+    future = await KomlogSession.login()
+    await future
 
 async def stop_komlog_session():
     await KomlogSession.close()

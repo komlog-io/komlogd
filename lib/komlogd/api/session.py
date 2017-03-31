@@ -6,145 +6,149 @@ import pandas as pd
 from komlogd.api import logging
 from komlogd.api import crypto
 from komlogd.api.processing import message as procmsg
-from komlogd.api.model import messages, exceptions, orm, store, transfer_methods
+from komlogd.api.model import messages, exceptions, orm, store, transfer_methods, queues
 
 KOMLOG_LOGIN_URL = 'https://www.komlog.io/login'
 KOMLOG_WS_URL = 'https://agents.komlog.io/'
 
-loop = asyncio.get_event_loop()
 
 class KomlogSession:
-    def __init__(self, username, privkey):
-        self.username = username
-        self.privkey = privkey
-        self.pubkey = self.privkey.public_key()
-        self.metrics_store=store.MetricsStore(owner=username)
-        self.session = None
-        self.ws = None
-        self.t_loop = None
-        self.stop_f = False
-        self._serialized_pubkey = crypto.serialize_public_key(self.pubkey)
-        self._printable_pubkey = crypto.get_printable_pubkey(self.pubkey)
+    def __init__(self, username, privkey, loop=None):
+        loop = loop or asyncio.get_event_loop()
+        self._loop = loop
+        self._username = username
+        self._privkey = privkey
+        self._pubkey = self._privkey.public_key()
+        self._metrics_store=store.MetricsStore(owner=username)
+        self._session = None
+        self._ws = None
+        self._session_future = None
+        self._loop_future = None
+        self._stop_f = False
+        self._serialized_pubkey = crypto.serialize_public_key(self._pubkey)
+        self._printable_pubkey = crypto.get_printable_pubkey(self._pubkey)
         self._deferred=[]
         self._hooked_metrics=set()
+        self._q_msg_workers = queues.AsyncQueue(num_workers=5, on_msg=self._process_input_message, name='Message Workers', loop=self._loop)
 
     async def close(self):
         logging.logger.info('closing Komlog connection')
-        self.stop_f = True
-        if self.ws and self.ws.closed is False:
-            await self.ws.close()
-            self.ws = None
-        if self.session:
-            await self.session.close()
-            self.session = None
-        if self.t_loop:
-            await self.t_loop
-            self.t_loop = None
+        self._stop_f = True
+        await self._q_msg_workers.join()
+        if self._ws and self._ws.closed is False:
+            await self._ws.close()
+            self._ws = None
+        if self._session:
+            await self._session.close()
+            self._session = None
+        if self._loop_future:
+            await self._loop_future
+            self._session_future.set_result(True)
 
     async def login(self):
-        if self.t_loop:
-            return False
-        else:
+        if self._session_future is None:
             logging.logger.info('Authenticating agent')
             await self._auth()
             logging.logger.info('Initializing websocket connection')
             await self._ws_connect()
+            self._q_msg_workers.start()
             logging.logger.info('Entering loop')
-            self.t_loop = loop.create_task(self._loop())
-            return True
+            self._loop_future = asyncio.ensure_future(self._session_loop(), loop=self._loop)
+            self._session_future = asyncio.futures.Future(loop=self._loop)
+        return self._session_future
 
     async def _auth(self):
-        self.session = aiohttp.ClientSession()
+        self._session = aiohttp.ClientSession()
         data = {
-            'u':self.username,
+            'u':self._username,
             'k':self._serialized_pubkey,
             'pv':messages.KomlogMessage._version_
         }
         try:
-            async with self.session.post(KOMLOG_LOGIN_URL,data=data) as resp:
+            async with self._session.post(KOMLOG_LOGIN_URL,data=data) as resp:
                 resp_content = await resp.json()
                 if resp.status == 403:
                     logging.logger.error('Access Denied')
-                    logging.logger.error('is username correct? '+self.username)
+                    logging.logger.error('is username correct? '+self._username)
                     logging.logger.error('is agent public key added on web and in active state?')
                     logging.logger.error('public key content is:\n'+self._printable_pubkey)
                     raise exceptions.LoginException('Access denied')
                 elif not (resp.status == 200 and 'challenge' in resp_content):
                     logging.logger.error('Unexpected server response: '+str(resp))
                     raise exceptions.LoginException('Unexpected error')
-            c = crypto.process_challenge(self.privkey, resp_content['challenge'])
-            s = crypto.sign_message(self.privkey, c)
+            c = crypto.process_challenge(self._privkey, resp_content['challenge'])
+            s = crypto.sign_message(self._privkey, c)
             data['c']=c
             data['s']=s
-            async with self.session.post(KOMLOG_LOGIN_URL,data=data) as resp:
+            async with self._session.post(KOMLOG_LOGIN_URL,data=data) as resp:
                 resp_content = await resp.json()
                 if resp.status == 403:
                     logging.logger.error('Access Denied. is agent active?')
                     raise exceptions.LoginException('Authentication process failed')
         except:
-            if self.session:
-                await self.session.close()
+            if self._session:
+                await self._session.close()
             raise
 
     async def _ws_connect(self):
         try:
-            self.ws = await self.session.ws_connect(KOMLOG_WS_URL)
+            self._ws = await self._session.ws_connect(KOMLOG_WS_URL)
         except:
-            if self.ws:
-                await self.ws.close()
+            if self._ws:
+                await self._ws.close()
             raise
 
-    async def _loop(self):
-        while not self.stop_f:
+    async def _session_loop(self):
+        while not self._stop_f:
             try:
-                if not self.session:
+                if not self._session:
                     logging.logger.debug('Restarting Komlog session')
                     await self._auth()
                     await self._ws_connect()
-                elif not self.ws:
+                elif not self._ws:
                     logging.logger.debug('Restarting websocket connection')
                     await self._ws_connect()
                 self._load_transfer_methods()
                 self._ws_reconnected()
-                async for msg in self.ws:
+                async for msg in self._ws:
                     logging.logger.debug('Message received from server: '+str(msg))
                     if msg.tp == aiohttp.WSMsgType.CLOSED:
                         break
                     elif msg.tp == aiohttp.WSMsgType.ERROR:
                         break
                     else:
-                        self._process_input_message(msg)
-                        self.metrics_store.run_maintenance()
+                        await self._q_msg_workers.push(msg)
+                        self._metrics_store.run_maintenance()
                 logging.logger.debug('Unexpected session close')
             except Exception:
                 ex_info=traceback.format_exc().splitlines()
                 for line in ex_info:
                     logging.logger.error(line)
             finally:
-                if self.ws and self.ws.closed:
-                    if self.ws.close_code == 4403:
+                if self._ws and self._ws.closed:
+                    if self._ws.close_code == 4403:
                         logging.logger.debug('Server denied access. Retrying connection.')
-                        self.session = None
-                    self.ws = None
-                if not self.stop_f:
+                        self._session = None
+                    self._ws = None
+                if not self._stop_f:
                     await asyncio.sleep(15)
 
     def _load_transfer_methods(self):
         logging.logger.debug('Loading transfer methods')
-        self.transfer_methods=transfer_methods.TransferMethodsIndex(owner=self.username)
+        self._transfer_methods=transfer_methods.TransferMethodsIndex(owner=self._username)
         for item in transfer_methods.static_transfer_methods.get_transfer_methods():
-            self.transfer_methods.set_transfer_method(item)
+            self._transfer_methods.set_transfer_method(item)
             for metric in item.metrics:
                 self._hooked_metrics.add(metric)
             if item.data_reqs is not None:
                 for metric in item.metrics:
-                    self.metrics_store.set_metric_data_reqs(metric=metric, requirements=item.data_reqs)
+                    self._metrics_store.set_metric_data_reqs(metric=metric, requirements=item.data_reqs)
 
     def _ws_reconnected(self):
         for metric in self._hooked_metrics:
             msg=messages.HookToUri(uri=metric.uri)
             self._send_message(msg)
-            data_reqs=self.metrics_store.get_metric_data_reqs(metric)
+            data_reqs=self._metrics_store.get_metric_data_reqs(metric)
             if data_reqs:
                 if data_reqs.past_delta:
                     end = pd.Timestamp('now',tz='utc')
@@ -159,7 +163,7 @@ class KomlogSession:
             self._deferred.remove(msg)
             self._send_message(msg)
 
-    def _process_input_message(self, msg):
+    async def _process_input_message(self, msg):
         try:
             data=json.loads(msg.data)
             if 'action' in data:
@@ -175,7 +179,7 @@ class KomlogSession:
             raise exceptions.InvalidMessageException()
         try:
             logging.logger.debug('sending message '+str(message.to_dict()))
-            self.ws.send_str(json.dumps(message.to_dict()))
+            self._ws.send_str(json.dumps(message.to_dict()))
         except Exception:
             ex_info=traceback.format_exc().splitlines()
             for line in ex_info:
@@ -196,7 +200,7 @@ class KomlogSession:
         for metric in h_metrics:
             self._hooked_metrics.add(metric)
         if on_update and len(h_metrics)>0:
-            self.transfer_methods.set_transfer_method(metrics=h_metrics, func=on_update)
+            self._transfer_methods.set_transfer_method(metrics=h_metrics, func=on_update)
 
     def unhook(self, metrics):
         uh_metrics=[]
@@ -237,14 +241,14 @@ class KomlogSession:
                         'type':item.metric.m_type.value,
                         'content':item.data,
                     })
-                    self.metrics_store.store(metric=item.metric, ts=ts, content=item.data)
+                    self._metrics_store.store(metric=item.metric, ts=ts, content=item.data)
                 msgs.append(messages.SendMultiData(ts=ts, uris=uris))
             elif isinstance(items[0].metric, orm.Datasource):
                 msgs.append(messages.SendDsData(uri=items[0].metric.uri, ts=ts, content=items[0].data))
-                self.metrics_store.store(metric=items[0].metric, ts=ts, content=items[0].data)
+                self._metrics_store.store(metric=items[0].metric, ts=ts, content=items[0].data)
             elif isinstance(items[0].metric, orm.Datapoint):
                 msgs.append(messages.SendDpData(uri=items[0].metric.uri, ts=ts, content=items[0].data))
-                self.metrics_store.store(metric=items[0].metric, ts=ts, content=items[0].data)
+                self._metrics_store.store(metric=items[0].metric, ts=ts, content=items[0].data)
             else:
                 raise TypeError('invalid metric type')
         msgs.sort(key=lambda x: x.ts)

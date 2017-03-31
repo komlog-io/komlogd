@@ -12,9 +12,9 @@ def process_message_send_multi_data(msg, session, **kwargs):
             metric=Datasource(uri=item['uri'])
         elif item['type'] == Metrics.DATAPOINT:
             metric=Datapoint(uri=item['uri'])
-        session.metrics_store.store(metric, msg.ts, item['content'])
+        session._metrics_store.store(metric, msg.ts, item['content'])
         metrics.append(metric)
-    transfer_methods=session.transfer_methods.get_transfer_methods(metrics=metrics)
+    transfer_methods=session._transfer_methods.get_transfer_methods(metrics=metrics)
     for item in transfer_methods:
         logging.logger.debug('Requesting execution of method: '+item.f.__name__)
         asyncio.ensure_future(item.f(ts=msg.ts, metrics=metrics, session=session))
@@ -23,7 +23,7 @@ def process_message_send_data_interval(msg, session, **kwargs):
     logging.logger.debug('Received data for uri: '+msg.metric.uri)
     logging.logger.debug('Interval ['+msg.start.isoformat()+' - '+msg.end.isoformat()+']')
     for row in msg.data[::-1]:
-        session.metrics_store.store(metric=msg.metric, ts=row[0], content=row[1])
+        session._metrics_store.store(metric=msg.metric, ts=row[0], content=row[1])
 
 def process_message_generic_response(msg, session, **kwargs):
     logging.logger.debug('Received generic_response message')

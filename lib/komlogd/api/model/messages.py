@@ -4,6 +4,9 @@ import pandas as pd
 from komlogd.api.model import validation, orm
 from komlogd.api.model.types import Metrics, Actions
 
+class ExitMessage:
+    pass
+
 class Catalog(type):
     def __init__(cls, name, bases, dct):
         if hasattr(cls, '_action_'):
