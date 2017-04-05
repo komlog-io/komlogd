@@ -3,8 +3,8 @@ import decimal
 import pandas as pd
 import datetime
 import uuid
-from komlogd.api.model import validation
-from komlogd.api.model.types import Metrics
+from komlogd.api.protocol.model import validation
+from komlogd.api.protocol.model.types import Metrics
 
 class ApiModelValidationTest(unittest.TestCase):
 
@@ -198,35 +198,6 @@ class ApiModelValidationTest(unittest.TestCase):
         ]
         for content in contents:
             self.assertTrue(validation.validate_dp_content(content))
-
-    def test_validate_metric_type_failure(self):
-        ''' validate_metric should fail if metric is not a Metric enum element or its value does not belong to any of them '''
-        contents = [
-            None,
-            [Metrics.DATASOURCE],
-            {Metrics.DATASOURCE},
-            (Metrics.DATASOURCE,Metrics.DATAPOINT),
-            {Metrics.DATASOURCE:Metrics.DATASOURCE},
-            'non_existent_metric_value',
-            decimal.Decimal('23'),
-            -1,
-            -1.2,
-            uuid.uuid4(),
-            uuid.uuid1(),
-            pd.Timestamp('now',tz='utc')
-        ]
-        for content in contents:
-            with self.assertRaises(TypeError) as cm:
-                validation.validate_metric_type(content)
-            self.assertEqual(str(cm.exception), 'Invalid metric type')
-
-    def test_validate_metric_type_success(self):
-        ''' validate_metric should succeed if metric is a Metric enum element or its value belongs to any of them '''
-        metrics=[metric for metric in Metrics]
-        metrics_values=[metric.value for metric in Metrics]
-        contents=metrics+metrics_values
-        for content in contents:
-            self.assertTrue(validation.validate_metric_type(content))
 
     def test_is_message_sequence_failure(self):
         ''' is_message_sequence should return False if param is no a valid sequence '''

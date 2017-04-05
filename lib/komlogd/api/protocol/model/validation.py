@@ -3,7 +3,7 @@ import decimal
 import re
 import pandas as pd
 from datetime import datetime
-from komlogd.api.model.types import Metrics
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
 LOCALURI=re.compile('^([a-zA-Z0-9\-_]+\.)*[a-zA-Z0-9\-_]+(?!\s)$')
 GLOBALURI=re.compile('^([a-zA-Z0-9\-_]+\.)*[a-zA-Z0-9\-_]+:([a-zA-Z0-9\-_]+\.)*[a-zA-Z0-9\-_]+(?!\s)$')
@@ -39,13 +39,10 @@ def validate_ts(value):
     else:
         raise TypeError('ts type is not valid')
 
-def validate_metric_type(value):
-    if value in Metrics:
+def validate_privkey(value):
+    if isinstance(value, RSAPrivateKey) and value.key_size >= 4096:
         return True
-    elif any(value is metric.value for metric in Metrics):
-        return True
-    else:
-        raise TypeError('Invalid metric type')
+    raise TypeError('Invalid privkey')
 
 def validate_ds_content(value):
     if not isinstance(value, str):

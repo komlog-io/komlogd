@@ -3,10 +3,11 @@ import aiohttp
 import json
 import traceback
 import pandas as pd
-from komlogd.api import logging
-from komlogd.api import crypto
-from komlogd.api.processing import message as procmsg
-from komlogd.api.model import messages, exceptions, orm, store, transfer_methods, queues
+from komlogd.api import logging, exceptions, crypto
+from komlogd.api.protocol.model import messages, validation
+from komlogd.api.protocol.processing import message as prmsg
+from komlogd.api.protocol.processing import procedure as prproc
+from komlogd.api.model import store, transfer_methods, queues
 
 KOMLOG_LOGIN_URL = 'https://www.komlog.io/login'
 KOMLOG_WS_URL = 'https://agents.komlog.io/'
@@ -16,20 +17,50 @@ class KomlogSession:
     def __init__(self, username, privkey, loop=None):
         loop = loop or asyncio.get_event_loop()
         self._loop = loop
-        self._username = username
-        self._privkey = privkey
-        self._pubkey = self._privkey.public_key()
-        self._metrics_store=store.MetricsStore(owner=username)
+        self.username = username
+        self.privkey = privkey
+        self._metrics_store = store.MetricsStore(owner=self.username)
+        self._transfer_methods = transfer_methods.TransferMethodsIndex(owner=self.username)
         self._session = None
         self._ws = None
         self._session_future = None
         self._loop_future = None
-        self._stop_f = False
-        self._serialized_pubkey = crypto.serialize_public_key(self._pubkey)
-        self._printable_pubkey = crypto.get_printable_pubkey(self._pubkey)
-        self._deferred=[]
-        self._hooked_metrics=set()
-        self._q_msg_workers = queues.AsyncQueue(num_workers=5, on_msg=self._process_input_message, name='Message Workers', loop=self._loop)
+        self._deferred = []
+        self._waiting_response = {}
+        self._q_msg_workers = queues.AsyncQueue(num_workers=5, on_msg=self._process_received_message, name='Message Workers', loop=self._loop)
+
+    @property
+    def username(self):
+        return self._username
+
+    @username.setter
+    def username(self, value):
+        try:
+            validation.validate_username(value)
+            getattr(self, '_username')
+            raise exceptions.BadParametersException('username modification not allowed')
+        except AttributeError:
+            self._username = value
+        except TypeError:
+            raise exceptions.BadParametersException('Invalid username {}'.format(str(value)))
+
+    @property
+    def privkey(self):
+        return self._privkey
+
+    @privkey.setter
+    def privkey(self, value):
+        try:
+            validation.validate_privkey(value)
+            getattr(self, '_privkey')
+            raise exceptions.BadParametersException('private key modification not allowed')
+        except AttributeError:
+            self._privkey = value
+            self._pubkey = value.public_key()
+            self._serialized_pubkey = crypto.serialize_public_key(self._pubkey)
+            self._printable_pubkey = crypto.get_printable_pubkey(self._pubkey)
+        except TypeError:
+            raise exceptions.BadParametersException('Invalid private key')
 
     async def close(self):
         logging.logger.info('closing Komlog connection')
@@ -37,10 +68,8 @@ class KomlogSession:
         await self._q_msg_workers.join()
         if self._ws and self._ws.closed is False:
             await self._ws.close()
-            self._ws = None
         if self._session:
             await self._session.close()
-            self._session = None
         if self._loop_future:
             await self._loop_future
             self._session_future.set_result(True)
@@ -52,10 +81,15 @@ class KomlogSession:
             logging.logger.info('Initializing websocket connection')
             await self._ws_connect()
             self._q_msg_workers.start()
+            self._load_static_transfer_methods()
             logging.logger.info('Entering loop')
             self._loop_future = asyncio.ensure_future(self._session_loop(), loop=self._loop)
             self._session_future = asyncio.futures.Future(loop=self._loop)
-        return self._session_future
+
+    async def join(self):
+        if self._session_future is not None:
+            while not getattr(self, '_stop_f',False):
+                await self._session_future
 
     async def _auth(self):
         self._session = aiohttp.ClientSession()
@@ -99,7 +133,7 @@ class KomlogSession:
             raise
 
     async def _session_loop(self):
-        while not self._stop_f:
+        while not getattr(self, '_stop_f',False):
             try:
                 if not self._session:
                     logging.logger.debug('Restarting Komlog session')
@@ -108,7 +142,6 @@ class KomlogSession:
                 elif not self._ws:
                     logging.logger.debug('Restarting websocket connection')
                     await self._ws_connect()
-                self._load_transfer_methods()
                 self._ws_reconnected()
                 async for msg in self._ws:
                     logging.logger.debug('Message received from server: '+str(msg))
@@ -119,56 +152,54 @@ class KomlogSession:
                     else:
                         await self._q_msg_workers.push(msg)
                         self._metrics_store.run_maintenance()
-                logging.logger.debug('Unexpected session close')
             except Exception:
                 ex_info=traceback.format_exc().splitlines()
                 for line in ex_info:
                     logging.logger.error(line)
             finally:
+                logging.logger.debug('Unexpected session close')
                 if self._ws and self._ws.closed:
                     if self._ws.close_code == 4403:
                         logging.logger.debug('Server denied access. Retrying connection.')
                         self._session = None
                     self._ws = None
                 if not self._stop_f:
+                    self._ws_disconnected()
                     await asyncio.sleep(15)
 
-    def _load_transfer_methods(self):
+    def _load_static_transfer_methods(self):
         logging.logger.debug('Loading transfer methods')
-        self._transfer_methods=transfer_methods.TransferMethodsIndex(owner=self._username)
-        for item in transfer_methods.static_transfer_methods.get_transfer_methods():
-            self._transfer_methods.set_transfer_method(item)
-            for metric in item.metrics:
-                self._hooked_metrics.add(metric)
-            if item.data_reqs is not None:
-                for metric in item.metrics:
-                    self._metrics_store.set_metric_data_reqs(metric=metric, requirements=item.data_reqs)
+        for item in transfer_methods.static_transfer_methods.get_transfer_methods(enabled=False):
+            if not self._transfer_methods.add_transfer_method(item, enabled=False):
+                logging.logger.error('Error loading transfer method '+item.f.__name__)
+
+    def _ws_disconnected(self):
+        self._transfer_methods.disable_all()
 
     def _ws_reconnected(self):
-        for metric in self._hooked_metrics:
-            msg=messages.HookToUri(uri=metric.uri)
-            self._send_message(msg)
-            data_reqs=self._metrics_store.get_metric_data_reqs(metric)
-            if data_reqs:
-                if data_reqs.past_delta:
-                    end = pd.Timestamp('now',tz='utc')
-                    start= end - data_reqs.past_delta
-                else:
-                    end = None
-                    start = None
-                msg=messages.RequestData(uri=metric.uri, start=start, end=end, count=data_reqs.past_count)
-                self._send_message(msg)
         for msg in self._deferred[:]:
             logging.logger.debug('sending deferred message')
             self._deferred.remove(msg)
             self._send_message(msg)
+        asyncio.ensure_future(prproc.initialize_transfer_methods(self))
 
-    async def _process_input_message(self, msg):
+    async def _process_received_message(self, msg):
         try:
             data=json.loads(msg.data)
             if 'action' in data:
                 message=messages.KomlogMessage.load_from_dict(data)
-                procmsg.processing_map[message.action](msg=message, session=self)
+                if message.irt and message.irt in self._waiting_response:
+                    if self._waiting_response[message.irt].done():
+                        # some messages generate multiple responses. Protocol procedures are responsible for
+                        # marking msg done or undone, adding more pending futures in the last case.
+                        logging.logger.debug('Enqueueing message again')
+                        await self._q_msg_workers.push(msg)
+                    else:
+                        logging.logger.debug('processing message response procedure')
+                        self._waiting_response[message.irt].set_result(message)
+                else:
+                    logging.logger.debug('processing non requested message')
+                    prmsg.processing_map[message.action](msg=message, session=self)
         except Exception:
             ex_info=traceback.format_exc().splitlines()
             for line in ex_info:
@@ -186,74 +217,23 @@ class KomlogSession:
                 logging.logger.error(line)
             self._deferred.append(message)
 
-    def hook(self, metrics, on_update=None):
-        h_metrics=[]
-        if isinstance(metrics, list):
-            for metric in metrics:
-                msg=messages.HookToUri(uri=metric.uri)
-                self._send_message(msg)
-                h_metrics.append(metric)
-        else:
-            msg=messages.HookToUri(uri=metrics.uri)
-            self._send_message(msg)
-            h_metrics.append(metrics)
-        for metric in h_metrics:
-            self._hooked_metrics.add(metric)
-        if on_update and len(h_metrics)>0:
-            self._transfer_methods.set_transfer_method(metrics=h_metrics, func=on_update)
+    async def _await_response(self, message):
+        self._send_message(message)
+        future = self._mark_message_undone(message.seq)
+        return await future
 
-    def unhook(self, metrics):
-        uh_metrics=[]
-        if isinstance(metrics, list):
-            for metric in metrics:
-                msg=messages.UnHookFromUri(uri=metric.uri)
-                self._send_message(msg)
-                uh_metrics.append(metric)
-        else:
-            msg=messages.UnHookFromUri(uri=metrics.uri)
-            self._send_message(msg)
-            uh_metrics.append(metrics)
-        for metric in uh_metrics:
-            try:
-                self._hooked_metrics.remove(metric)
-            except KeyError:
-                pass
+    def _mark_message_done(self, seq):
+        self._waiting_response.pop(seq,None)
 
-    def send_samples(self, samples):
-        if not isinstance(samples, list):
-            return False
-        grouped = {}
-        for sample in samples:
-            if isinstance(sample, orm.Sample):
-                try:
-                    grouped[sample.ts].append(sample)
-                except KeyError:
-                    grouped[sample.ts]=[sample]
-        tss = grouped.keys()
-        msgs = []
-        for ts in tss:
-            items = grouped[ts]
-            if len(items)>1:
-                uris = []
-                for item in items:
-                    uris.append({
-                        'uri':item.metric.uri,
-                        'type':item.metric.m_type.value,
-                        'content':item.data,
-                    })
-                    self._metrics_store.store(metric=item.metric, ts=ts, content=item.data)
-                msgs.append(messages.SendMultiData(ts=ts, uris=uris))
-            elif isinstance(items[0].metric, orm.Datasource):
-                msgs.append(messages.SendDsData(uri=items[0].metric.uri, ts=ts, content=items[0].data))
-                self._metrics_store.store(metric=items[0].metric, ts=ts, content=items[0].data)
-            elif isinstance(items[0].metric, orm.Datapoint):
-                msgs.append(messages.SendDpData(uri=items[0].metric.uri, ts=ts, content=items[0].data))
-                self._metrics_store.store(metric=items[0].metric, ts=ts, content=items[0].data)
-            else:
-                raise TypeError('invalid metric type')
-        msgs.sort(key=lambda x: x.ts)
-        for msg in msgs:
-            self._send_message(msg)
-        return True
+    def _mark_message_undone(self, seq):
+        future = asyncio.futures.Future(loop=self._loop)
+        self._waiting_response[seq]=future
+        return future
+
+    async def send_samples(self, samples):
+        logging.logger.debug('enviando samples')
+        result = await prproc.send_samples(self, samples)
+        logging.logger.debug('resultado: {}'.format(str(result)))
+        return result
 
 

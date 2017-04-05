@@ -3,7 +3,7 @@
 API
 ===
 
-komlogd can be used as a library to add Komlog functionalities into your applications.
+komlogd can be used as a library to add Komlog functionality into your applications.
 
 .. note::
 
@@ -13,7 +13,7 @@ komlogd can be used as a library to add Komlog functionalities into your applica
 Session initialization
 ----------------------
 
-To stablish a Komlog session we need:
+To stablish a Komlog session you need:
 
 * Komlog user.
 * RSA key.
@@ -39,7 +39,7 @@ and private key and call the *login* method:
         await komlog_session.login()
         # At this point session is stablished.
         # If you need this task to wait in the loop while session is open:
-        # await komlog_session.t_loop
+        # await komlog_session.join()
 
         # To close the session:
         await komlog_session.close()
@@ -50,7 +50,7 @@ and private key and call the *login* method:
         loop.stop()
     loop.close()
 
-komlogd stablishes a web sockets connection with Komlog and internally manages reconnections.
+komlogd stablishes a websockets connection with Komlog and internally manages reconnections.
 
 .. important::
     You need to authorize your agent previously on Komlog web, as explained
@@ -85,7 +85,7 @@ In this example you can see how to send a sample of a datasource metric:
     import asyncio
     import pandas as pd
     from komlogd.api import session, crypto
-    from komlogd.api.model.orm import Datasource, Sample
+    from komlogd.api.protocol.model.types import Datasource, Sample
 
     loop = asyncio.get_event_loop()
 
@@ -104,7 +104,7 @@ In this example you can see how to send a sample of a datasource metric:
         sample = Sample(metric=metric, ts=ts, data=data)
 
         # send sample and exit
-        komlog_session.send_samples(samples=[sample])
+        await komlog_session.send_samples(samples=[sample])
         await komlog_session.close()
 
     try:
@@ -119,7 +119,7 @@ In this example you can see how to send a sample of a datasource metric:
 
 A datapoint metric is used to store numerical values. You can use any type of numerical variables,
 like *int*, *float* or `Decimal <https://docs.python.org/3/library/decimal.html>`_ (we don't
-support values without numerical representation like *infinity*, *NaN*, etc).
+support Decimal values without numerical representation like *infinity*, *NaN*, etc).
 
 In this fragment you can see how to send two samples associated to a pair of datapoint metrics:
 
@@ -128,7 +128,7 @@ In this fragment you can see how to send two samples associated to a pair of dat
     import asyncio
     import pandas as pd
     from komlogd.api import session, crypto
-    from komlogd.api.model.orm import Datapoint, Sample
+    from komlogd.api.protocol.model.types import Datapoint, Sample
 
     loop = asyncio.get_event_loop()
 
@@ -148,7 +148,7 @@ In this fragment you can see how to send two samples associated to a pair of dat
         samples.append(Sample(metric=metric2, ts=ts, data=28.5))
 
         # send samples and exit
-        komlog_session.send_samples(samples=samples)
+        await komlog_session.send_samples(samples=samples)
         await komlog_session.close()
 
     try:
@@ -177,17 +177,18 @@ The timestamp can be any of these types:
 Transfer methods
 ---------------
 
-You can execute a function every time a metric is updated. We call this type of functions *transfer methods*.
+komlogd can execute a function every time a metric is updated. We call this type of functions *transfer methods*.
 
 To create transfer methods, simply add the *@transfermethod* decorator to the function. You can pass the following
 parameters to the decorator:
 
 * **uris**: list with metrics uris we want to subscribe our method to.
-* **data_reqs**: it needs a DataRequirements object. With this parameter you set the method data requirements by uri.
-* **min_exec_delta**: min time between execs. By default, komlogd will run the method every time a metric is updated. With this parameter you can tell
+* **data_reqs**: it needs a DataRequirements object. With this parameter you set the method data requirements per uri.
+* **min_exec_delta**: min time between executions. By default, komlogd will run the method every time a metric is updated. With this parameter you can tell
   komlogd to run it at most once in *min_exec_delta* interval. The parameter needs a pandas.Timedelta object.
+* **exec_on_load**: By default *False*. Tells komlogd to execute the transfer method as soon as its initialization has been completed.
 
-Here you can see how to create an transfer method:
+Here you can see how to create a transfer method:
 
 .. code:: python
 
@@ -206,8 +207,10 @@ with the samples to send to Komlog:
 
 .. code:: python
 
+    import pandas as pd
     from komlogd.api.transfer_methods import transfermethod
-    from komlogd.api.model.orm import DataRequirements, Datasource, Sample
+    from komlogd.api.protocol.model.types import Datasource, Sample
+    from komlogd.api.protocol.model.transfer_methods import DataRequirements
 
     @transfermethod(uris=['cpu.system','cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
     def summary(ts, updated, data, others):
@@ -221,8 +224,8 @@ with the samples to send to Komlog:
         return result
 
 In this example we subscribe our summary function to metrics *cpu.system* and *cpu.user* and make some operations over their
-last hour data. Finally, we fire updates to metrics *cpu.system.last_60min_stats* and *cpu.user.last_60min_stats* with the data obtained
-from that operations. This method will run every time *cpu.system* or *cpu.user* are updated.
+last hour data. Finally, we fire updates to metrics *cpu.system.last_60min_stats* and *cpu.user.last_60min_stats* with the result obtained
+from that operations. This method will run every time *cpu.system* and/or *cpu.user* are updated.
 
 Here, we explain the last example in detail:
 
@@ -246,8 +249,7 @@ Here, we explain the last example in detail:
 
 You can stack the *transfermethod* decorator as many times as you need. A transfer method will be created
 each time the decorator is applied. So for the previous example, if we want to create transfer methods for two
-groups of metrics, we can decorate the function once per group instead of creating two functions for the same
-operation.
+groups of metrics, we can decorate the function once per group.
 
 .. code:: python
 
@@ -266,11 +268,11 @@ Users can share metrics through Komlog in real time with other users.
     You can share metrics through your `Komlog configuration page <https://www.komlog.io/config>`_.
     Keep in mind that metrics **will always be shared read only and recursively**, this means that
     if you share metric *cpu.system* every nested metric in the data model tree will
-    be shared too, no matter if them already existed or not when the root metric was
+    be shared too, no matter if they already existed or not when the metric was
     shared.
 
     Sharing metrics read only means a *transfer method* cannot modify any remote metric, so
-    if they return samples to update remote metrics, they will be dropped. Users **can only
+    if they return samples to update remote metrics, they will be dropped. **Users can only
     modify their own data model.**
 
 With this functionality you can create applications based on distributed data models. The way to

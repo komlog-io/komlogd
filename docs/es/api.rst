@@ -3,7 +3,7 @@
 API
 ===
 
-Komlogd puede utilizarse como librería en otras aplicaciones, para así
+Komlogd puede importarse en otras aplicaciones para utilizarse como librería, y así
 integrar en ellas la funcionalidad ofrecida por Komlog.
 
 .. note::
@@ -44,7 +44,7 @@ Para inicializar una sesión en Komlog bastaría con realizar lo siguiente:
         # En este punto la sesión estaría establecida.
         # Si necesitamos que nuestra tarea espere mientras
         # la sesión está establecida:
-        # await komlog_session.t_loop
+        # await komlog_session.join()
 
         # Para cerrar la sesión:
         await komlog_session.close()
@@ -73,7 +73,7 @@ A partir de ese momento, siempre y cuando el login haya sido correcto,
 tendríamos una sesión establecida con Komlog, y estaríamos
 preparados para enviar y recibir información.
 
-Internamente, komlogd establece con el servidor una conexión mediante *web sockets*, por lo
+Internamente, komlogd establece con el servidor una conexión mediante *websockets*, por lo
 que la sesión se mantiene establecida en todo momento. En caso de recibir una desconexión,
 la propia librería se encarga de restablecerla.
 
@@ -94,7 +94,7 @@ Envío de datos a Komlog
 En Komlog el usuario organiza sus métricas en una estructura en árbol en la que cada métrica
 está identificada unívocamente por lo que llamamos *uri*. A esta estructura la llamamos *el modelo
 de datos del usuario*. A los diferentes valores que puede tomar una métrica a lo
-largo del tiempo se les conoce como *samples*.
+largo del tiempo se les conoce como *samples (muestras)*.
 
 En el modelo de datos del usuario se pueden crear métricas de los siguientes tipos:
 
@@ -102,23 +102,23 @@ En el modelo de datos del usuario se pueden crear métricas de los siguientes ti
 * **Datapoint**
 
 Komlog crea las métricas automáticamente la primera vez que subimos datos de ellas.
-El tipo de datos de una métrica se establece cuando ésta se crea, y no hay posibilidad de cambiarlo
-mientras exista. Para modificar el tipo de dato habría que borrar la métrica (lo que implicaría
-borrar todas las muestras de datos recibidas de ella) y volverla a crear con un tipo diferente.
+El tipo de una métrica se establece cuando ésta se crea, y no hay posibilidad de cambiarlo
+mientras exista. Para modificar el tipo de una métrica habría que borrarla (lo que implicaría
+borrar todas las muestras de datos recibidas de ella) y volverla a crearla con el tipo deseado.
 
 **Métricas de tipo Datasource**
 
 Una métrica de tipo Datasource se utiliza para almacenar textos. Podemos subir cualquier texto
 de una longitud máxima de 130KB.
 
-Para enviar a Komlog un sample de un Datasource se podría hacer de la siguiente manera:
+Para enviar a Komlog una muestra de un Datasource se podría hacer de la siguiente manera:
 
 .. code:: python
 
     import asyncio
     import pandas as pd
     from komlogd.api import session, crypto
-    from komlogd.api.model.orm import Datasource, Sample
+    from komlogd.api.protocol.model.types import Datasource, Sample
 
     loop = asyncio.get_event_loop()
 
@@ -137,7 +137,7 @@ Para enviar a Komlog un sample de un Datasource se podría hacer de la siguiente
         sample = Sample(metric=metric, ts=ts, data=data)
 
         # enviamos sample y cerramos sessión
-        komlog_session.send_samples(samples=[sample])
+        await komlog_session.send_samples(samples=[sample])
         await komlog_session.close()
 
     try:
@@ -151,9 +151,9 @@ Para enviar a Komlog un sample de un Datasource se podría hacer de la siguiente
 **Métricas de tipo Datapoint**
 
 Una métrica de tipo Datapoint se utiliza para almacenar valores numéricos.
-Se aceptar variables de tipo int, float o `Decimal <https://docs.python.org/3/library/decimal.html>`_ (de estas últimas sólamente las que tienen representación numérica, es decir, no se aceptan valores como *infinity*, *-infinity*, *NaN*, etc).
+Se aceptan variables de tipo int, float o `Decimal <https://docs.python.org/3/library/decimal.html>`_ (de estas últimas sólamente las que tienen representación numérica, es decir, no se aceptan valores como *infinity*, *-infinity*, *NaN*, etc).
 
-En el siguiente ejemplo se muestra como enviar un par de samples asociados a dos métricas
+En el siguiente ejemplo se muestra como enviar un par de muestras asociadas a dos métricas
 de tipo Datapoint:
 
 .. code:: python
@@ -161,7 +161,7 @@ de tipo Datapoint:
     import asyncio
     import pandas as pd
     from komlogd.api import session, crypto
-    from komlogd.api.model.orm import Datapoint, Sample
+    from komlogd.api.protocol.model.types import Datapoint, Sample
 
     loop = asyncio.get_event_loop()
 
@@ -181,7 +181,7 @@ de tipo Datapoint:
         samples.append(Sample(metric=metric2, ts=ts, data=28.5))
 
         # enviamos samples y cerramos sesión
-        komlog_session.send_samples(samples=samples)
+        await komlog_session.send_samples(samples=samples)
         await komlog_session.close()
 
     try:
@@ -211,8 +211,8 @@ precisión máxima aceptada es de milisegundos**.
 Funciones de transferencia
 --------------------------
 
-En komlogd existe la posibilidad de ejecutar una función cada vez que llegue una muestra de una métrica. A este
-tipo de funciones les denominamos *funciones de transferencia*.
+komlogd puede ejecutar una función cada vez que una métrica se actualiza. A este
+tipo de funciones les llamamos *funciones de transferencia*.
 
 Para crear una función de transferencia simplemente hay que aplicarle el decorador *@transfermethod*. Este decorador admite los
 siguientes parámetros:
@@ -223,6 +223,9 @@ siguientes parámetros:
 * **min_exec_delta**: objecto tipo pandas.Timedelta. Este parámetro indica el periodo mínimo entre ejecuciones de la función. Por defecto, komlogd ejecutará
   la función de transferencia cada vez que se reciban muestras en los métricas suscritas, sin embago, este comportamiento puede no siempre
   ser el deseado, por lo que este parámetro indica a komlogd que entre ejecución y ejecución al menos debe haber pasado el tiempo especificado.
+* **exec_on_load**: Por defecto *False*. Indica si se debe ejecutar la función
+  nada más cargarse o, por el contrario, esperar a que se reciba la primera
+  actualización en las métricas suscritas.
 
 El siguiente código muestra como se crearía una función de transferencia:
 
@@ -236,16 +239,18 @@ El siguiente código muestra como se crearía una función de transferencia:
 
 
 En el ejemplo anterior, cada vez que se actualicen las métricas *cpu.system* y *cpu.user* komlogd ejecutaría la función *example*.
-Como se puede ver, example es una corrutina. **El decorador @transfermethod puede aplicarse tanto a funciones normales o como a corrutinas**.
+Como se puede ver, example es una corrutina. **El decorador @transfermethod puede aplicarse tanto a funciones normales como a corrutinas**.
 
 
-Una función de transferencia puede provocar la actualización de métricas en nuestro modelo de datos. Para ello debe devolver
-una lista con los samples que se deben enviar a Komlog:
+Una función de transferencia puede actualizar métricas de nuestro modelo de datos. Para ello debe devolver
+una lista con las muestras que se deben enviar a Komlog:
 
 .. code:: python
 
+    import pandas as pd
     from komlogd.api.transfer_methods import transfermethod
-    from komlogd.api.model.orm import Datasource, Sample
+    from komlogd.api.protocol.model.types import Datasource, Sample
+    from komlogd.api.protocol.model.transfer_methods import DataRequirements
 
     @transfermethod(uris=['cpu.system','cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
     def summary(ts, updated, data, others):
@@ -260,7 +265,7 @@ una lista con los samples que se deben enviar a Komlog:
 
 En el ejemplo anterior nos suscribimos a las métricas *cpu.system* y *cpu.user* y realizamos una serie de cálculos estadísticos sobre
 sus datos de la última hora. Posteriormente se escriben los resultados en las métricas *cpu.system.last_60min_stats* y *cpu.user.last_60min_stats*.
-La función se ejecutará cada vez que se reciban datos.
+La función se ejecutará cada vez que se las métricas *cpu.system* y/o *cpu.user* se actualicen.
 
 A continuación la comentamos en detalle.
 
@@ -274,16 +279,16 @@ A continuación la comentamos en detalle.
     * **updated**: Lista de métricas actualizadas en esta ejecución.
     * **data**: Diccionario que contiene una key por cada una de las métricas suscritas. El valor es un objeto tipo pandas.Series, con los datos de la métrica.
     * **others**: Lista con métricas a los que está suscrita la función pero que no han provocado la ejecución actual.
-* En la primera línea de la función *summary* declaramos el diccionario result. Éste contiene la clave *samples* que será la que almacene los samples a enviar a Komlog.
+* En la primera línea de la función *summary* declaramos el diccionario result. Éste contiene la clave *samples* que será la que almacene las muestras a enviar a Komlog.
 * A continuación, por cada una de las métricas que se han actualizado hacemos lo siguiente:
     * Obtenemos los datos de la última hora.
     * Obtenemos el resultado al aplicarles la función *describe()* (Esta es una función del módulo pandas que obtiene una serie de valores estadísticos sobre una serie).
     * Creamos un Datasource cuya *uri* será la de la métrica + *.last_60min_stats*, es decir, crearíamos **cpu.system.last_60_min_stats** y **cpu.user.last_60_min_stats**.
     * Creamos un Sample del datasource y establecemos los datos y el timestamp.
     * Añadimos el sample al listado de samples del diccionario result.
-* Por último la función devuelve el diccionario *result*, con los samples a enviar a Komlog.
+* Por último la función devuelve el diccionario *result*, con las muestras a enviar a Komlog.
 
-Se puede aplicar el decorador *transfermethod* a una función tantas veces como se necesite, simplemente apilando las llamadas al mismo. Por ejemplo, en la función anterior, si quisiésemos aplicar la función a dos grupos de métricas diferentes, bastaría con aplicar el decorador a la función una vez por cada grupo de métricas en lugar de crear dos funciones para la misma operación.
+Se puede aplicar el decorador *transfermethod* a una función tantas veces como se necesite, simplemente apilando las llamadas al mismo. Por ejemplo, en la función anterior, si quisiésemos aplicar la función a dos grupos de métricas diferentes, bastaría con aplicar el decorador a la función una vez por cada grupo de métricas:
 
 .. code:: python
 
@@ -298,9 +303,8 @@ Trabajando con métricas remotas
 Komlog permite compartir partes del modelo de datos con otros usuarios.
 
 .. note::
-
-    Esta funcionalidad está accesible desde el menú de configuración web de Komlog. Hay que tener
-    en cuenta que los datos **siempre se comparten en modo de sólo lectura y de forma recursiva**,
+    Para compartir datos, accede al `menú de configuración web de Komlog <https://www.komlog.io/config>`_.
+    Hay que tener en cuenta que los datos **siempre se comparten en modo de sólo lectura y de forma recursiva**,
     es decir, si comparto la métrica *cpu.system* estaría compartiendo dicha métrica y todas sus
     métricas anidadas en el modelo de datos del usuario, sin importar si ya existían o no en el
     momento de compartirla.
@@ -323,7 +327,7 @@ una función de transferencia que se suscribiese a *host1.cpu.system* y *host1.c
     def summary(ts, updated, data, others):
         ...
 
-Un transfer method se puede suscribir a métricas propias y remotas a la vez:
+Un mismo transfer method se puede suscribir a métricas propias y remotas:
 
 .. code:: python
 

@@ -7,8 +7,10 @@ Datastores
 import time
 import decimal
 import pandas as pd
-from komlogd.api import logging
-from komlogd.api.model import validation, orm
+from komlogd.api import logging, uri
+from komlogd.api.protocol.model import validation
+from komlogd.api.protocol.model.transfer_methods import DataRequirements
+from komlogd.api.protocol.model.types import Metric, Datasource, Datapoint
 
 
 class MetricsStore:
@@ -49,32 +51,32 @@ class MetricsStore:
     @default_reqs.setter
     def default_reqs(self, value):
         if value is None:
-            self._default_reqs=orm.DataRequirements(past_delta=pd.Timedelta('10min'),past_count=2)
-        elif isinstance(value, orm.DataRequirements):
+            self._default_reqs=DataRequirements(past_delta=pd.Timedelta('10min'),past_count=2)
+        elif isinstance(value, DataRequirements):
             self._default_reqs=value
         else:
             raise TypeError('Invalid data_delta parameter')
 
     def store(self, metric, ts, content):
-        if isinstance(metric, orm.Datasource):
+        if isinstance(metric, Datasource):
             validation.validate_ds_content(content)
-        elif isinstance(metric, orm.Datapoint):
+        elif isinstance(metric, Datapoint):
             validation.validate_dp_content(content)
         else:
             return
         validation.validate_ts(ts)
         ts=pd.Timestamp(ts.astimezone('utc'))
-        uri = orm.get_global_uri(metric, owner=self.owner)
+        guri = uri.get_global_uri(metric, owner=self.owner)
         try:
             if isinstance(content, decimal.Decimal):
                 value = int(content) if content%1 == 0 else float(content)
             else:
                 value = content
-            self._series[uri][ts]=value
-            if self._series[uri].index[-1]<self._series[uri].index[-2]:
-                self._series[uri]=self._series[uri].sort_index()
+            self._series[guri][ts]=value
+            if self._series[guri].index[-1]<self._series[guri].index[-2]:
+                self._series[guri]=self._series[guri].sort_index()
         except KeyError:
-            self._series[uri]=pd.Series(data=[value], index=[ts])
+            self._series[guri]=pd.Series(data=[value], index=[ts])
         except IndexError:
             pass
 
@@ -86,62 +88,62 @@ class MetricsStore:
 
     def purge(self):
         now = pd.Timestamp('now',tz='utc')
-        for uri in self._series.keys():
-            reqs = self._metric_reqs[uri] if uri in self._metric_reqs else self._default_reqs
+        for guri in self._series.keys():
+            reqs = self._metric_reqs[guri] if guri in self._metric_reqs else self._default_reqs
             past_delta = reqs.past_delta if reqs.past_delta else self._default_reqs.past_delta
             past_count = reqs.past_count if reqs.past_count else self._default_reqs.past_count
             t1_delta = now-past_delta if past_delta else None
-            t1_count = self._series[uri][:now][-past_count:].index[0] if past_count else None
+            t1_count = self._series[guri][:now][-past_count:].index[0] if past_count else None
             if t1_delta or t1_count:
-                count=self._series[uri].count()
+                count=self._series[guri].count()
                 if t1_delta and t1_count:
                     t1 = t1_delta if t1_delta < t1_count else t1_count
                 else:
                     t1 = t1_delta if t1_delta else t1_count
-                self._series[uri]=self._series[uri].ix[t1:now]
-                new_count=self._series[uri].count()
-                logging.logger.debug('Deleted '+str(count-new_count)+' rows from time series '+uri+' before: '+str(count)+' now: '+str(new_count))
+                self._series[guri]=self._series[guri].ix[t1:now]
+                new_count=self._series[guri].count()
+                logging.logger.debug('Deleted '+str(count-new_count)+' rows from time series '+guri+' before: '+str(count)+' now: '+str(new_count))
         end = pd.Timestamp('now',tz='utc')
         elapsed = end-now
         logging.logger.debug('Purge procedure finished. Elapsed time (s): '+'.'.join((str(elapsed.seconds),str(elapsed.microseconds).zfill(6))))
         return True
 
-    def set_metric_data_reqs(self, metric, requirements):
-        if not isinstance(metric, orm.Metric):
+    def add_metric_data_reqs(self, metric, reqs):
+        if not isinstance(metric, Metric):
             raise TypeError('Invalid metric type')
-        if not isinstance(requirements, orm.DataRequirements):
+        if not isinstance(reqs, DataRequirements):
             raise TypeError('Invalid requirements type')
-        uri = orm.get_global_uri(metric, owner=self.owner)
-        if not uri in self._metric_reqs:
-            self._metric_reqs[uri]=requirements
+        guri = uri.get_global_uri(metric, owner=self.owner)
+        if not guri in self._metric_reqs:
+            self._metric_reqs[guri]=reqs
         else:
-            new_reqs = orm.DataRequirements()
-            if requirements.past_delta and self._metric_reqs[uri].past_delta:
-                new_reqs.past_delta = requirements.past_delta if requirements.past_delta > self._metric_reqs[uri].past_delta else self._metric_reqs[uri].past_delta
-            elif requirements.past_delta:
-                new_reqs.past_delta = requirements.past_delta
+            new_reqs = DataRequirements()
+            if reqs.past_delta and self._metric_reqs[guri].past_delta:
+                new_reqs.past_delta = reqs.past_delta if reqs.past_delta > self._metric_reqs[guri].past_delta else self._metric_reqs[guri].past_delta
+            elif reqs.past_delta:
+                new_reqs.past_delta = reqs.past_delta
             else:
-                new_reqs.past_delta = self._metric_reqs[uri].past_delta
-            if requirements.past_count != None and self._metric_reqs[uri].past_count != None:
-                new_reqs.past_count = requirements.past_count if requirements.past_count > self._metric_reqs[uri].past_count else self._metric_reqs[uri].past_count
-            elif requirements.past_count != None:
-                new_reqs.past_count = requirements.past_count
+                new_reqs.past_delta = self._metric_reqs[guri].past_delta
+            if reqs.past_count != None and self._metric_reqs[guri].past_count != None:
+                new_reqs.past_count = reqs.past_count if reqs.past_count > self._metric_reqs[guri].past_count else self._metric_reqs[guri].past_count
+            elif reqs.past_count != None:
+                new_reqs.past_count = reqs.past_count
             else:
-                new_reqs.past_count = self._metric_reqs[uri].past_count
-            self._metric_reqs[uri] = new_reqs
+                new_reqs.past_count = self._metric_reqs[guri].past_count
+            self._metric_reqs[guri] = new_reqs
         return True
 
     def get_metric_data_reqs(self, metric):
-        uri = orm.get_global_uri(metric, owner=self.owner)
+        guri = uri.get_global_uri(metric, owner=self.owner)
         try:
-            return self._metric_reqs[uri]
+            return self._metric_reqs[guri]
         except KeyError:
             return None
 
     def get_serie(self, metric):
-        uri = orm.get_global_uri(metric, owner=self.owner)
+        guri = uri.get_global_uri(metric, owner=self.owner)
         try:
-            return self._series[uri]
+            return self._series[guri]
         except KeyError:
             return pd.Series()
 

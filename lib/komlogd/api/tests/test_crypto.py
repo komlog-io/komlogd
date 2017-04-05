@@ -3,8 +3,7 @@ import os
 import random
 import string
 from base64 import b64encode, b64decode
-from komlogd.api import crypto
-from komlogd.api.model import exceptions
+from komlogd.api import crypto, exceptions
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 class ApiCryptoTest(unittest.TestCase):

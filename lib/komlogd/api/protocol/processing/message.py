@@ -1,8 +1,7 @@
 import asyncio
 import json
 from komlogd.api import logging
-from komlogd.api.model.types import Metrics, Actions
-from komlogd.api.model.orm import Datasource, Datapoint, Metric
+from komlogd.api.protocol.model.types import Metrics, Actions, Datasource, Datapoint, Metric
 
 
 def process_message_send_multi_data(msg, session, **kwargs):
@@ -14,7 +13,7 @@ def process_message_send_multi_data(msg, session, **kwargs):
             metric=Datapoint(uri=item['uri'])
         session._metrics_store.store(metric, msg.ts, item['content'])
         metrics.append(metric)
-    transfer_methods=session._transfer_methods.get_transfer_methods(metrics=metrics)
+    transfer_methods = session._transfer_methods.get_transfer_methods(metrics=metrics)
     for item in transfer_methods:
         logging.logger.debug('Requesting execution of method: '+item.f.__name__)
         asyncio.ensure_future(item.f(ts=msg.ts, metrics=metrics, session=session))

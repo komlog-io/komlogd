@@ -1,7 +1,9 @@
 import asyncio
 import traceback
 from komlogd.api import logging
-from komlogd.api.model import messages
+
+class ExitMessage:
+    pass
 
 class AsyncQueue:
     def __init__(self, num_workers, on_msg, name, loop=None):
@@ -26,7 +28,7 @@ class AsyncQueue:
             try:
                 item = await self._queue.get()
                 new_msg = True
-                if item.__class__ is messages.ExitMessage:
+                if item.__class__ is ExitMessage:
                     logging.logger.debug('Stopping worker {}/{} on {} queue'.format(str(instance), str(self._num_workers),self._name))
                     break
                 args, kwargs = item
@@ -48,7 +50,7 @@ class AsyncQueue:
         if not self._workers:
             return
         for _ in range(self._num_workers):
-            await self._queue.put(messages.ExitMessage())
+            await self._queue.put(ExitMessage())
         try:
             await asyncio.gather(*self._workers, loop=self._loop)
             self._workers = None

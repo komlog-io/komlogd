@@ -2,10 +2,10 @@ import uuid
 import unittest
 import decimal
 import pandas as pd
-from komlogd.api.model import messages, orm
-from komlogd.api.model.types import Metrics, Actions
+from komlogd.api.protocol.model import messages
+from komlogd.api.protocol.model.types import Metrics, Actions, Metric, Datasource, Datapoint
 
-class ApiModelMessagesTest(unittest.TestCase):
+class ApiProtocolModelMessagesTest(unittest.TestCase):
 
     def test_version(self):
         ''' Protocol version '''
@@ -859,7 +859,7 @@ class ApiModelMessagesTest(unittest.TestCase):
     def test_SendDataInterval_failure_invalid_metric(self):
         ''' creating a new RequestData instance should fail if metric is not valid.
             Metric should be of type Datasource or Datapoint. '''
-        metric=orm.Metric(uri='valid.uri')
+        metric=Metric(uri='valid.uri')
         start = pd.Timestamp('now',tz='utc')
         end = pd.Timestamp('now',tz='utc')
         data = []
@@ -869,7 +869,7 @@ class ApiModelMessagesTest(unittest.TestCase):
 
     def test_SendDataInterval_failure_invalid_start(self):
         ''' creating a new RequestData instance should fail if start is not valid. '''
-        metric=orm.Datasource(uri='valid.uri')
+        metric=Datasource(uri='valid.uri')
         start = 213123
         end = pd.Timestamp('now',tz='utc')
         data = []
@@ -879,7 +879,7 @@ class ApiModelMessagesTest(unittest.TestCase):
 
     def test_SendDataInterval_failure_invalid_end(self):
         ''' creating a new RequestData instance should fail if end is not valid. '''
-        metric=orm.Datasource(uri='valid.uri')
+        metric=Datasource(uri='valid.uri')
         start = pd.Timestamp('now',tz='utc')
         end = 213123
         data = []
@@ -889,7 +889,7 @@ class ApiModelMessagesTest(unittest.TestCase):
 
     def test_SendDataInterval_failure_invalid_data_not_a_list(self):
         ''' creating a new RequestData instance should fail if data is not a list. '''
-        metric=orm.Datasource(uri='valid.uri')
+        metric=Datasource(uri='valid.uri')
         start = pd.Timestamp('now',tz='utc')
         end = pd.Timestamp('now',tz='utc')
         data = tuple()
@@ -899,7 +899,7 @@ class ApiModelMessagesTest(unittest.TestCase):
 
     def test_SendDataInterval_failure_invalid_data_item_not_a_list(self):
         ''' creating a new RequestData instance should fail if a data item is not a list.'''
-        metric=orm.Datasource(uri='valid.uri')
+        metric=Datasource(uri='valid.uri')
         start = pd.Timestamp('now',tz='utc')
         end = pd.Timestamp('now',tz='utc')
         data =[{'set'}]
@@ -909,7 +909,7 @@ class ApiModelMessagesTest(unittest.TestCase):
 
     def test_SendDataInterval_failure_invalid_data_item_does_not_have_two_items(self):
         ''' creating a new RequestData instance should fail if a data item does not have two items'''
-        metric=orm.Datasource(uri='valid.uri')
+        metric=Datasource(uri='valid.uri')
         start = pd.Timestamp('now',tz='utc')
         end = pd.Timestamp('now',tz='utc')
         data =[
@@ -927,7 +927,7 @@ class ApiModelMessagesTest(unittest.TestCase):
 
     def test_SendDataInterval_failure_invalid_data_item_ts_is_invalid(self):
         ''' creating a new RequestData instance should fail if a data item ts is invalid '''
-        metric=orm.Datasource(uri='valid.uri')
+        metric=Datasource(uri='valid.uri')
         start = pd.Timestamp('now',tz='utc')
         end = pd.Timestamp('now',tz='utc')
         data =[
@@ -944,7 +944,7 @@ class ApiModelMessagesTest(unittest.TestCase):
 
     def test_SendDataInterval_failure_invalid_data_item_content_is_invalid_dp_content(self):
         ''' creating a new RequestData instance should fail if a data item content is invalid '''
-        metric=orm.Datapoint(uri='valid.uri')
+        metric=Datapoint(uri='valid.uri')
         start = pd.Timestamp('now',tz='utc')
         end = pd.Timestamp('now',tz='utc')
         data =[
@@ -960,7 +960,7 @@ class ApiModelMessagesTest(unittest.TestCase):
 
     def test_SendDataInterval_failure_invalid_data_item_content_is_invalid_ds_content(self):
         ''' creating a new RequestData instance should fail if a data item content is invalid '''
-        metric=orm.Datasource(uri='valid.uri')
+        metric=Datasource(uri='valid.uri')
         start = pd.Timestamp('now',tz='utc')
         end = pd.Timestamp('now',tz='utc')
         data =[
@@ -976,7 +976,7 @@ class ApiModelMessagesTest(unittest.TestCase):
 
     def test_SendDataInterval_failure_invalid_seq(self):
         ''' creating a new RequestData instance should fail if set is invalid '''
-        metric=orm.Datasource(uri='valid.uri')
+        metric=Datasource(uri='valid.uri')
         start = pd.Timestamp('now',tz='utc')
         end = pd.Timestamp('now',tz='utc')
         seq = uuid.uuid1().hex
@@ -994,7 +994,7 @@ class ApiModelMessagesTest(unittest.TestCase):
 
     def test_SendDataInterval_failure_invalid_irt(self):
         ''' creating a new RequestData instance should fail if set is invalid '''
-        metric=orm.Datasource(uri='valid.uri')
+        metric=Datasource(uri='valid.uri')
         start = pd.Timestamp('now',tz='utc')
         end = pd.Timestamp('now',tz='utc')
         seq = uuid.uuid1().hex[0:20]
@@ -1012,7 +1012,7 @@ class ApiModelMessagesTest(unittest.TestCase):
 
     def test_SendDataInterval_success_datasource(self):
         ''' creating a new RequestData instance should succeed '''
-        metric=orm.Datasource(uri='valid.uri')
+        metric=Datasource(uri='valid.uri')
         start = pd.Timestamp('now',tz='utc')
         end = pd.Timestamp('now',tz='utc')
         seq = uuid.uuid1().hex[0:20]
@@ -1034,7 +1034,7 @@ class ApiModelMessagesTest(unittest.TestCase):
 
     def test_SendDataInterval_success_datapoint(self):
         ''' creating a new RequestData instance should succeed '''
-        metric=orm.Datapoint(uri='valid.uri')
+        metric=Datapoint(uri='valid.uri')
         start = pd.Timestamp('now',tz='utc')
         end = pd.Timestamp('now',tz='utc')
         seq = uuid.uuid1().hex[0:20]
@@ -1653,7 +1653,7 @@ class ApiModelMessagesTest(unittest.TestCase):
         msg=messages.SendDataInterval.load_from_dict(source)
         self.assertEqual(msg.v, messages.KomlogMessage._version_)
         self.assertEqual(msg.action, Actions.SEND_DATA_INTERVAL)
-        self.assertEqual(msg.metric, orm.Datasource(uri=uri['uri']))
+        self.assertEqual(msg.metric, Datasource(uri=uri['uri']))
         self.assertEqual(msg.start, pd.Timestamp(start))
         self.assertEqual(msg.end, pd.Timestamp(end))
         self.assertEqual(sorted(msg.data, key=lambda x:x[0]), sorted([(pd.Timestamp(item[0]),item[1]) for item in data]))
@@ -1687,7 +1687,7 @@ class ApiModelMessagesTest(unittest.TestCase):
         msg=messages.SendDataInterval.load_from_dict(source)
         self.assertEqual(msg.v, messages.KomlogMessage._version_)
         self.assertEqual(msg.action, Actions.SEND_DATA_INTERVAL)
-        self.assertEqual(msg.metric, orm.Datapoint(uri=uri['uri']))
+        self.assertEqual(msg.metric, Datapoint(uri=uri['uri']))
         self.assertEqual(msg.start, pd.Timestamp(start))
         self.assertEqual(msg.end, pd.Timestamp(end))
         self.assertEqual(sorted(msg.data, key=lambda x:x[0]), sorted([(pd.Timestamp(item[0]),decimal.Decimal(item[1])) for item in data]))

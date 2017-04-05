@@ -9,8 +9,8 @@ import time
 import traceback
 from datetime import datetime
 from komlogd.base import logging
-from komlogd.api.model import orm
 from komlogd.web import main as webmain
+from komlogd.api.protocol.model.types import Datasource, Sample
 
 class Scheduler:
     def __init__(self, jobs):
@@ -67,8 +67,8 @@ class Scheduler:
             logging.logger.debug('Rescheduling job check: '+job.uri)
             self.loop.call_at(when, self.job_loop, job, localtime)
             if len(data)>0:
-                metric = orm.Datasource(uri=job.uri)
-                sample = orm.Sample(metric=metric, ts=ts, data=data)
+                metric = Datasource(uri=job.uri)
+                sample = Sample(metric=metric, ts=ts, data=data)
                 logging.logger.debug('Sending content to Komlog: '+metric.uri)
                 webmain.send_sample(sample)
 

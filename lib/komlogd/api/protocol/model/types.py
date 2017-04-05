@@ -1,6 +1,22 @@
 import pandas as pd
-from komlogd.api.model import validation
-from komlogd.api.model.types import Metrics
+from enum import Enum, unique
+from komlogd.api.protocol.model import validation
+
+@unique
+class Actions(Enum):
+    HOOK_TO_URI             = 'hook_to_uri'
+    SEND_MULTI_DATA         = 'send_multi_data'
+    SEND_DP_DATA            = 'send_dp_data'
+    SEND_DS_DATA            = 'send_ds_data'
+    UNHOOK_FROM_URI         = 'unhook_from_uri'
+    REQUEST_DATA            = 'request_data'
+    SEND_DATA_INTERVAL      = 'send_data_interval'
+    GENERIC_RESPONSE        = 'generic_response'
+
+@unique
+class Metrics(Enum):
+    DATASOURCE              = 'd'
+    DATAPOINT               = 'p'
 
 class Metric:
     _m_type_=None
@@ -44,33 +60,6 @@ class Datapoint(Metric):
     def __init__(self, uri):
         super().__init__(uri=uri)
 
-class DataRequirements:
-    def __init__(self, past_delta=None, past_count=None):
-        self.past_delta = past_delta
-        self.past_count = past_count
-
-    @property
-    def past_delta(self):
-        return self._past_delta
-
-    @past_delta.setter
-    def past_delta(self, value):
-        if isinstance(value, pd.Timedelta) or value is None:
-            self._past_delta = value
-        else:
-            raise TypeError('Invalid past_delta parameter')
-
-    @property
-    def past_count(self):
-        return self._past_count
-
-    @past_count.setter
-    def past_count(self, value):
-        if (isinstance(value, int) and value >= 0) or value is None:
-            self._past_count = value
-        else:
-            raise TypeError('Invalid past_count parameter')
-
 class Sample:
     def __init__(self, metric, data, ts):
         self.metric = metric
@@ -111,15 +100,4 @@ class Sample:
             raise TypeError('Invalid Metric')
         self._data=data
 
-def get_global_uri(metric, owner):
-    if not isinstance(metric, Metric):
-        raise TypeError('Invalid metric')
-    if validation.is_local_uri(metric.uri):
-        return ':'.join((owner.lower(),metric.uri))
-    elif validation.is_global_uri(metric.uri):
-        owner,local_uri=metric.uri.split(':')
-        uri = ':'.join((owner.lower(),local_uri))
-        return uri
-    else:
-        raise TypeError('Invalid metric uri')
 

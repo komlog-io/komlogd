@@ -1,11 +1,9 @@
 import uuid
 import decimal
 import pandas as pd
-from komlogd.api.model import validation, orm
-from komlogd.api.model.types import Metrics, Actions
+from komlogd.api.protocol.model import validation
+from komlogd.api.protocol.model.types import Metrics, Actions, Datasource, Datapoint
 
-class ExitMessage:
-    pass
 
 class Catalog(type):
     def __init__(cls, name, bases, dct):
@@ -260,7 +258,7 @@ class SendMultiData(KomlogMessage):
             and all('uri' in item for item in uris)
             and all(validation.validate_uri(item['uri']) for item in uris)
             and all('type' in item for item in uris)
-            and all(validation.validate_metric_type(item['type']) for item in uris)
+            and all(item['type'] in [m.value for m in Metrics] + [m for m in Metrics] for item in uris)
             and all('content' in item for item in uris)
             and all(validation.validate_ds_content(item['content']) for item in uris if item['type'] in (Metrics.DATASOURCE.value, Metrics.DATASOURCE))
             and all(validation.validate_dp_content(item['content']) for item in uris if item['type'] in (Metrics.DATAPOINT.value, Metrics.DATAPOINT))):
@@ -449,7 +447,7 @@ class SendDataInterval(KomlogMessage):
         self.irt=irt
         self.metric = metric
         self.start = start
-        self.end = end 
+        self.end = end
         self.data = data
 
     @property
@@ -458,7 +456,7 @@ class SendDataInterval(KomlogMessage):
 
     @metric.setter
     def metric(self, metric):
-        if isinstance(metric, orm.Datasource) or isinstance(metric, orm.Datapoint):
+        if isinstance(metric, Datasource) or isinstance(metric, Datapoint):
             self._metric = metric
         else:
             raise TypeError('Invalid metric type')
@@ -492,12 +490,12 @@ class SendDataInterval(KomlogMessage):
                 isinstance(item,list)
                 and len(item)==2
                 and validation.validate_ts(item[0])
-                and (validation.validate_dp_content(item[1]) if isinstance(self._metric, orm.Datapoint) else validation.validate_ds_content(item[1]))
+                and (validation.validate_dp_content(item[1]) if isinstance(self._metric, Datapoint) else validation.validate_ds_content(item[1]))
                 for item in data)
             ):
-            if isinstance(self._metric, orm.Datasource):
+            if isinstance(self._metric, Datasource):
                 self._data=[(pd.Timestamp(row[0]),row[1]) for row in data]
-            elif isinstance(self._metric, orm.Datapoint):
+            elif isinstance(self._metric, Datapoint):
                 self._data=[(pd.Timestamp(row[0]),decimal.Decimal(str(row[1]))) for row in data]
         else:
             raise TypeError('Invalid data')
@@ -521,9 +519,9 @@ class SendDataInterval(KomlogMessage):
             and 'end' in msg['payload']
             and 'data' in msg['payload']):
             if msg['payload']['uri']['type'] == Metrics.DATASOURCE.value:
-                metric = orm.Datasource(uri=msg['payload']['uri']['uri'])
+                metric = Datasource(uri=msg['payload']['uri']['uri'])
             elif msg['payload']['uri']['type'] == Metrics.DATAPOINT.value:
-                metric = orm.Datapoint(uri=msg['payload']['uri']['uri'])
+                metric = Datapoint(uri=msg['payload']['uri']['uri'])
             else:
                 raise TypeError ('Invalid metric type')
             start=msg['payload']['start']

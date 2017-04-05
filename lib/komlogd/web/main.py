@@ -1,4 +1,4 @@
-import traceback
+import asyncio
 from komlogd.api import session
 from komlogd.base import crypto, config, logging, exceptions
 from komlogd.base.settings import options
@@ -23,11 +23,5 @@ async def stop_komlog_session():
     await KomlogSession.close()
 
 def send_sample(sample):
-    try:
-        KomlogSession.send_samples(samples=[sample])
-    except Exception:
-        logging.logger.error('Exception sending job output')
-        ex_info=traceback.format_exc().splitlines()
-        for line in ex_info:
-            logging.logger.error(line)
+    asyncio.ensure_future(KomlogSession.send_samples(samples=[sample]))
 
