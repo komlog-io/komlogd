@@ -294,3 +294,91 @@ class ApiModelStoreTest(unittest.TestCase):
         d_stablished=ms.get_metric_data_reqs(metric)
         self.assertEqual(d_stablished.past_delta, delta)
 
+    def test_get_serie_metric_not_found(self):
+        ''' get_serie should return an empty serie if metric is not found '''
+        ms=store.MetricsStore(owner='owner')
+        metric=Datasource(uri='ds.uri')
+        serie = ms.get_serie(metric)
+        self.assertEqual(len(serie), 0)
+
+    def test_get_serie_full_data(self):
+        ''' get_serie should return a copy of the full serie if no interval or count parameter is passed'''
+        ms=store.MetricsStore(owner='owner')
+        metric=Datasource(uri='owner:ds.uri')
+        tss = [pd.Timestamp(value,tz='utc') for value in [ns*1000 for ns in range(1,1000)]]
+        for ts in tss:
+            content = str(ts)
+            ms.store(metric=metric, ts=ts, content=content)
+        serie = ms.get_serie(metric)
+        self.assertEqual(len(serie), len(ms._series[metric.uri]))
+
+    def test_get_serie_data_interval(self):
+        ''' get_serie should return a copy of the interval passed '''
+        ms=store.MetricsStore(owner='owner')
+        metric=Datasource(uri='owner:ds.uri')
+        tss = [pd.Timestamp(value,tz='utc') for value in [ns*1000 for ns in range(1,1000)]]
+        for ts in tss:
+            content = str(ts)
+            ms.store(metric=metric, ts=ts, content=content)
+        ets=pd.Timestamp(500000, tz='utc')
+        its=pd.Timestamp(1000, tz='utc')
+        serie = ms.get_serie(metric, ets=ets, its=its)
+        self.assertEqual(len(serie), 500)
+        self.assertEqual(serie.index[0],its)
+        self.assertEqual(serie.ix[0],str(its))
+        self.assertEqual(serie.index[-1],ets)
+        self.assertEqual(serie.ix[-1],str(ets))
+
+    def test_get_serie_data_count(self):
+        ''' get_serie should return a copy of the serie with as much rows as requested '''
+        ms=store.MetricsStore(owner='owner')
+        metric=Datasource(uri='owner:ds.uri')
+        tss = [pd.Timestamp(value,tz='utc') for value in [ns*1000 for ns in range(1,1000)]]
+        for ts in tss:
+            content = str(ts)
+            ms.store(metric=metric, ts=ts, content=content)
+        ets=pd.Timestamp(500000, tz='utc')
+        count=10
+        serie = ms.get_serie(metric, ets=ets, count=count)
+        self.assertEqual(len(serie), 10)
+        self.assertEqual(serie.index[-1],ets)
+        self.assertEqual(serie.ix[-1],str(ets))
+
+    def test_get_serie_data_last(self):
+        ''' get_serie should return a copy of the serie with the last row with ts older than the requested one '''
+        ms=store.MetricsStore(owner='owner')
+        metric=Datasource(uri='owner:ds.uri')
+        tss = [pd.Timestamp(value,tz='utc') for value in [ns*1000 for ns in range(1,1000)]]
+        for ts in tss:
+            content = str(ts)
+            ms.store(metric=metric, ts=ts, content=content)
+        ets_req=pd.Timestamp(500500, tz='utc')
+        ets_data=pd.Timestamp(500000, tz='utc')
+        serie = ms.get_serie(metric, ets=ets_req)
+        self.assertEqual(len(serie), 1)
+        self.assertEqual(serie.index[-1],ets_data)
+        self.assertEqual(serie.ix[-1],str(ets_data))
+
+    def test_get_serie_modify_data_does_not_modify_store(self):
+        ''' get_serie should return a copy of the serie '''
+        ms=store.MetricsStore(owner='owner')
+        metric=Datasource(uri='owner:ds.uri')
+        tss = [pd.Timestamp(value,tz='utc') for value in [ns*1000 for ns in range(1,1000)]]
+        for ts in tss:
+            content = str(ts)
+            ms.store(metric=metric, ts=ts, content=content)
+        ets=pd.Timestamp(500000, tz='utc')
+        its=pd.Timestamp(1000, tz='utc')
+        serie = ms.get_serie(metric, ets=ets, its=its)
+        self.assertEqual(len(serie), 500)
+        self.assertEqual(serie.index[0],its)
+        self.assertEqual(serie.ix[0],str(its))
+        self.assertEqual(serie.index[-1],ets)
+        self.assertEqual(serie.ix[-1],str(ets))
+        for i in range(0,500):
+            serie[i] = str(serie[i])+'modified'
+        serie2 = ms.get_serie(metric, ets=ets, its=its)
+        for i in range(0,500):
+            self.assertEqual(serie[i],str(pd.Timestamp((i+1)*1000, tz='utc'))+'modified')
+            self.assertEqual(serie2[i],str(pd.Timestamp((i+1)*1000, tz='utc')))
+

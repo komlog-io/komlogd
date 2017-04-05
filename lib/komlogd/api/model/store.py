@@ -140,10 +140,22 @@ class MetricsStore:
         except KeyError:
             return None
 
-    def get_serie(self, metric):
+    def get_serie(self, metric, ets=None, its=None, count=None):
         guri = uri.get_global_uri(metric, owner=self.owner)
         try:
-            return self._series[guri]
+            serie = self._series[guri]
+            if not ets:
+                d = serie.copy(deep=True)
+            elif its:
+                d = serie[its:ets].copy(deep=True)
+            elif count:
+                d = serie[:ets].tail(count).copy(deep=True)
+            else:
+                d = serie[:ets].tail(1).copy(deep=True)
+            d.name = metric
+            return d
         except KeyError:
-            return pd.Series()
+            serie = pd.Series()
+            serie.name = metric
+            return serie
 

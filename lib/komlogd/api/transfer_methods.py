@@ -85,24 +85,32 @@ class transfermethod:
     def __call__(self, f):
         logging.logger.debug('registering static transfer method, f: '+f.__name__+' uris: '+str(self.uris))
         @wraps(f)
-        async def decorated(*args, **kwargs):
+        async def decorated(session, ts, metrics):
             now=pd.Timestamp('now',tz='utc')
             if self.min_exec_delta and self.last_exec and now-self.min_exec_delta<self.last_exec:
                 logging.logger.debug('min_exec_delta condition not satisfied, not executing '+f.__name__)
                 return
             funcargs={}
-            arg_metrics_uris=[uri.get_global_uri(metric,owner=kwargs['session']._username) for metric in kwargs['metrics']]
+            arg_metrics_uris=[uri.get_global_uri(metric,owner=session._username) for metric in metrics]
             for arg in self.funcargs:
                 if arg == 'ts':
-                    funcargs[arg]=kwargs[arg]
+                    funcargs[arg]=ts
                 elif arg == 'updated':
-                    funcargs[arg]=[metric for metric in self.metrics if uri.get_global_uri(metric,owner=kwargs['session']._username) in arg_metrics_uris]
+                    funcargs[arg]=[metric for metric in self.metrics if uri.get_global_uri(metric,owner=session._username) in arg_metrics_uris]
                 elif arg == 'others':
-                    funcargs[arg]=[metric for metric in self.metrics if uri.get_global_uri(metric,owner=kwargs['session']._username) not in arg_metrics_uris]
+                    funcargs[arg]=[metric for metric in self.metrics if uri.get_global_uri(metric,owner=session._username) not in arg_metrics_uris]
                 elif arg == 'data':
                     data={}
+                    ets = ts
                     for metric in self.metrics:
-                        data[metric]=kwargs['session']._metrics_store.get_serie(metric=metric)
+                        its = None
+                        count = None
+                        reqs = self.data_reqs[metric.uri] if isinstance(self.data_reqs,dict) and metric.uri in self.data_reqs else self.data_reqs
+                        if reqs and reqs.past_delta:
+                            its = ets - reqs.past_delta
+                        if reqs and not its and reqs.past_count:
+                            count = reqs.past_count
+                        data[metric]=session._metrics_store.get_serie(metric=metric, ets=ets, its=its, count=count)
                     funcargs[arg]=data
             self.last_exec=pd.Timestamp('now',tz='utc')
             if asyncio.iscoroutinefunction(f):
@@ -111,7 +119,7 @@ class transfermethod:
                 result = f(**funcargs)
             if isinstance(result, dict) and 'samples' in result:
                 if isinstance(result['samples'], list):
-                    await kwargs['session'].send_samples(result['samples'])
+                    await session.send_samples(result['samples'])
                 else:
                     logging.logger.error('Transfer method response unsupported, samples field should be a list of Samples')
         self.funcargs=inspect.signature(f).parameters
