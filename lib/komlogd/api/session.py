@@ -163,7 +163,7 @@ class KomlogSession:
                         logging.logger.debug('Server denied access. Retrying connection.')
                         self._session = None
                     self._ws = None
-                if not self._stop_f:
+                if not getattr(self, '_stop_f',False):
                     self._ws_disconnected()
                     await asyncio.sleep(15)
 

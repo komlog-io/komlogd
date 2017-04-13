@@ -33,7 +33,7 @@ class TransferMethodsIndex:
     def add_transfer_method(self, transfer_method, enabled=False):
         if self.get_transfer_method(transfer_method.mid):
             return False
-        for m in transfer_method.metrics:
+        for m in transfer_method.m_in:
             if self.owner:
                 guri = uri.get_global_uri(m, owner=self.owner)
             else:

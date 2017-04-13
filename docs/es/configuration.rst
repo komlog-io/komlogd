@@ -169,14 +169,11 @@ Podemos añadir tantos bloques *external_job_file* al archivo *komlogd.yaml* com
 Configuración de funciones de transferencia
 -------------------------------------------
 
-Una *función de transferencia* es una función que se ejecuta como respuesta a una actualización de los
-datos de una *uri*.
+Una *función de transferencia* es una función que se ejecuta cuando se actualizan los
+datos de una o varias *uris*.
 
-komlogd permite a un usuario suscribirse a cualquiera de sus *uris*
-y recibir notificaciones cuando se reciban datos en ellas.
-
-Esta funcionalidad la podemos utilizar para realizar automatización de tareas, generación de alarmas,
-comunicación con servicios externos, análisis de datos en tiempo real, y en definitiva cualquier tarea
+Esta funcionalidad la podemos utilizar para automatizar tareas, generación de alarmas,
+comunicación con servicios externos, análisis de datos en tiempo real y, en definitiva, cualquier tarea
 que se nos ocurra que pueda estar asociada a eventos.
 
 En el apartado :ref:`funciones_de_transferencia` se explica cómo crear este tipo de funciones

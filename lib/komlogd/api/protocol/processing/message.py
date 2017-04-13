@@ -11,8 +11,9 @@ def process_message_send_multi_data(msg, session, **kwargs):
             metric=Datasource(uri=item['uri'])
         elif item['type'] == Metrics.DATAPOINT:
             metric=Datapoint(uri=item['uri'])
-        session._metrics_store.store(metric, msg.ts, item['content'])
-        metrics.append(metric)
+        if not session._metrics_store.isin(metric=metric, ts=msg.ts, content=item['content']):
+            session._metrics_store.store(metric, msg.ts, item['content'])
+            metrics.append(metric)
     transfer_methods = session._transfer_methods.get_transfer_methods(metrics=metrics)
     for item in transfer_methods:
         logging.logger.debug('Requesting execution of method: '+item.f.__name__)

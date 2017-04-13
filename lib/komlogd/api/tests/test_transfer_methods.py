@@ -3,86 +3,388 @@ import uuid
 import asyncio
 import pandas as pd
 from komlogd.api import transfer_methods, exceptions
-from komlogd.api.protocol.model.types import Metric
+from komlogd.api.model.store import MetricsStore
+from komlogd.api.protocol.model.types import Metric, Datasource, Datapoint, Sample
+from komlogd.api.protocol.model.transfer_methods import DataRequirements
 
 class ApiTransferMethodsTest(unittest.TestCase):
 
-    def test_transfermethod_failure_invalid_uris_parameter_type(self):
-        ''' creation of a transfermethod object should fail if uris parameter type is not a list '''
-        uris=[332,1.1,{'a':'dict'},'string',('tu','ple')]
-        for uri in uris:
+    def test_transfermethod_failure_invalid_p_in(self):
+        ''' creation of a transfermethod object should fail if p_in is invalid '''
+        p_ins = [1,'str',{'set'},['list'],('tupl','e'),Metric(uri='uri'),pd.Timestamp('now')]
+        for p_in in p_ins:
             with self.assertRaises(exceptions.BadParametersException) as cm:
-                transfer_methods.transfermethod(uris=uri)
-            self.assertEqual(cm.exception.msg, 'Invalid uris parameter type')
+                tm=transfer_methods.transfermethod(p_in=p_in)
+            self.assertEqual(cm.exception.msg, '"p_in" attribute must be a dict')
 
-    def test_transfermethod_failure_invalid_uri(self):
-        ''' creation of a transfermethod object should fail if any uri is invalid '''
-        uris=['valid','valid','valid','invalid uri']
-        with self.assertRaises(exceptions.BadParametersException) as cm:
-            transfer_methods.transfermethod(uris=uris)
-        self.assertEqual(str(cm.exception), 'Invalid uri')
+    def test_transfermethod_failure_reserved_p_in_key(self):
+        ''' creation of a transfermethod object should fail if p_in has a reserved key '''
+        p_ins=[{'ts':1},{'updated':1},{'others':1}]
+        for p_in in p_ins:
+            key = list(p_in.keys())[0]
+            with self.assertRaises(exceptions.BadParametersException) as cm:
+                tm=transfer_methods.transfermethod(p_in=p_in)
+            self.assertEqual(cm.exception.msg, 'Invalid input parameter. "{}" is a reserved parameter'.format(key))
+
+    def test_transfermethod_failure_invalid_p_out(self):
+        ''' creation of a transfermethod object should fail if p_out is invalid '''
+        p_outs = [1,'str',{'set'},['list'],('tupl','e'),Metric(uri='uri'),pd.Timestamp('now')]
+        for p_out in p_outs:
+            with self.assertRaises(exceptions.BadParametersException) as cm:
+                tm=transfer_methods.transfermethod(p_out=p_out)
+            self.assertEqual(cm.exception.msg, '"p_out" attribute must be a dict')
+
+    def test_transfermethod_failure_reserved_p_out_key(self):
+        ''' creation of a transfermethod object should fail if p_out has a reserved key '''
+        p_outs=[{'ts':1},{'updated':1},{'others':1}]
+        for p_out in p_outs:
+            key = list(p_out.keys())[0]
+            with self.assertRaises(exceptions.BadParametersException) as cm:
+                tm=transfer_methods.transfermethod(p_out=p_out)
+            self.assertEqual(cm.exception.msg, 'Invalid output parameter. "{}" is a reserved parameter'.format(key))
 
     def test_transfermethod_failure_invalid_min_exec_delta(self):
         ''' creation of a transfermethod object should fail if min_exec_delta parameter is invalid '''
-        uri='valid.uri'
         min_exec_delta='once upon a time'
         with self.assertRaises(exceptions.BadParametersException) as cm:
-            tm=transfer_methods.transfermethod(uris=[uri], min_exec_delta=min_exec_delta)
+            tm=transfer_methods.transfermethod(min_exec_delta=min_exec_delta)
         self.assertEqual(cm.exception.msg, 'Invalid min_exec_delta value')
 
-    def test_transfermethod_success_unique_uri(self):
+    def test_transfermethod_failure_invalid_data_reqs(self):
+        ''' creation of a transfermethod object should fail if data_reqs parameter is invalid '''
+        data_reqs='give me all'
+        with self.assertRaises(exceptions.BadParametersException) as cm:
+            tm=transfer_methods.transfermethod(data_reqs=data_reqs)
+        self.assertEqual(cm.exception.msg, 'Invalid data_reqs parameter')
+
+    def test_transfermethod_success(self):
         ''' creation of a transfermethod object should succeed if uri is valid '''
-        uri='valid.uri'
+        p_in={'arg1':'valid.uri','arg2':'another.uri'}
+        p_out={'arg3':'valid.uri','arg4':'another.uri'}
         min_exec_delta = '2h'
-        tm=transfer_methods.transfermethod(uris=[uri], min_exec_delta=min_exec_delta)
+        data_reqs = DataRequirements(past_delta=pd.Timedelta('6h'))
+        tm=transfer_methods.transfermethod(p_in=p_in, p_out=p_out, min_exec_delta=min_exec_delta, data_reqs=data_reqs, exec_on_load=True, allow_loops=True)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
         self.assertEqual(tm.min_exec_delta, pd.Timedelta(min_exec_delta))
-        self.assertEqual(tm.data_reqs, None)
-        self.assertEqual(tm.metrics, [Metric(uri=uri)])
-        self.assertEqual(tm.uris, [uri])
-        self.assertEqual(tm.exec_on_load, False)
-
-    def test_transfermethod_success_list_uri(self):
-        ''' creation of a transfermethod object should succeed if a list of valid uris is passed '''
-        uris=['valid.uri1','valid.uri2','valid.uri3']
-        tm=transfer_methods.transfermethod(uris=uris)
-        self.assertTrue(isinstance(tm.mid,uuid.UUID))
-        self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, None)
-        self.assertEqual(tm.data_reqs, None)
-        self.assertEqual(tm.metrics, [Metric(uri=uri) for uri in uris])
-        self.assertEqual(tm.uris, uris)
-        self.assertEqual(tm.exec_on_load, False)
+        self.assertEqual(tm.data_reqs, data_reqs)
+        self.assertEqual(tm.p_in, p_in)
+        self.assertEqual(tm.p_out, p_out)
+        self.assertEqual(tm.exec_on_load, True)
+        self.assertEqual(tm.allow_loops, True)
 
     def test_transfermethod_success_registering_transfermethod(self):
         '''transfermethod object should be able to register the associated method successfully '''
-        uris=['valid.uri1','valid.uri2','valid.uri3']
-        tm=transfer_methods.transfermethod(uris=uris)
+        p_in={'arg1':'valid.uri','arg2':'another.uri'}
+        p_out={'arg3':'valid.uri','arg4':'another.uri'}
+        min_exec_delta = '2h'
+        data_reqs = DataRequirements(past_delta=pd.Timedelta('6h'))
+        tm=transfer_methods.transfermethod(p_in=p_in, p_out=p_out, min_exec_delta=min_exec_delta, data_reqs=data_reqs, exec_on_load=True, allow_loops=True)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, None)
-        self.assertEqual(tm.data_reqs, None)
-        self.assertEqual(tm.metrics, [Metric(uri=uri) for uri in uris])
-        self.assertEqual(tm.uris, uris)
-        self.assertEqual(tm.exec_on_load, False)
+        self.assertEqual(tm.min_exec_delta, pd.Timedelta(min_exec_delta))
+        self.assertEqual(tm.data_reqs, data_reqs)
+        self.assertEqual(tm.p_in, p_in)
+        self.assertEqual(tm.p_out, p_out)
+        self.assertEqual(tm.exec_on_load, True)
+        self.assertEqual(tm.allow_loops, True)
         def func():
             pass
         f=tm(func)
         self.assertEqual(f,func)
-        self.assertEqual(tm.funcargs,{})
+        self.assertEqual(tm._func_params,{})
         self.assertIsNotNone(getattr(tm,'f',None))
         self.assertTrue(asyncio.iscoroutinefunction(tm.f))
 
-    def test_transfermethod_success_exec_on_load_true(self):
-        ''' creation of a transfermethod object should succeed and set exec_on_load to true '''
-        uri='valid.uri'
-        tm=transfer_methods.transfermethod(uris=[uri], exec_on_load=True)
+    def test_transfermethod_success_registering_transfermethod_with_input_params(self):
+        '''transfermethod object should be able to register the associated method and find input params '''
+        p_in={'arg1':Datapoint('valid.datapoint'),'arg2':Datasource('valid.datasource')}
+        min_exec_delta = '2h'
+        data_reqs = DataRequirements(past_delta=pd.Timedelta('6h'))
+        tm=transfer_methods.transfermethod(p_in=p_in, min_exec_delta=min_exec_delta, data_reqs=data_reqs, exec_on_load=True, allow_loops=True)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, None)
-        self.assertEqual(tm.data_reqs, None)
-        self.assertEqual(tm.metrics, [Metric(uri=uri)])
-        self.assertEqual(tm.uris, [uri])
+        self.assertEqual(tm.min_exec_delta, pd.Timedelta(min_exec_delta))
+        self.assertEqual(tm.data_reqs, data_reqs)
+        self.assertEqual(tm.p_in, p_in)
+        self.assertEqual(tm.p_out, {})
         self.assertEqual(tm.exec_on_load, True)
+        self.assertEqual(tm.allow_loops, True)
+        def func(arg1, arg2):
+            pass
+        f=tm(func)
+        self.assertEqual(f,func)
+        self.assertEqual(list(tm._func_params.keys()),['arg1','arg2'])
+        self.assertEqual(tm._p_in_routes,{'arg1':[[('s',0)]],'arg2':[[('s',0)]]})
+        self.assertEqual(tm._p_out_routes,{})
+        self.assertEqual(tm._m_in, {Datapoint('valid.datapoint'),Datasource('valid.datasource')})
+        self.assertIsNotNone(getattr(tm,'f',None))
+        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+
+    def test_transfermethod_success_registering_transfermethod_with_output_params(self):
+        '''transfermethod object should be able to register the associated method and find output params '''
+        p_out={'arg1':Datapoint('valid.datapoint'),'arg2':Datasource('valid.datasource')}
+        min_exec_delta = '2h'
+        data_reqs = DataRequirements(past_delta=pd.Timedelta('6h'))
+        tm=transfer_methods.transfermethod(p_out=p_out, min_exec_delta=min_exec_delta, data_reqs=data_reqs, exec_on_load=True, allow_loops=True)
+        self.assertTrue(isinstance(tm.mid,uuid.UUID))
+        self.assertEqual(tm.last_exec, None)
+        self.assertEqual(tm.min_exec_delta, pd.Timedelta(min_exec_delta))
+        self.assertEqual(tm.data_reqs, data_reqs)
+        self.assertEqual(tm.p_out, p_out)
+        self.assertEqual(tm.p_in, {})
+        self.assertEqual(tm.exec_on_load, True)
+        self.assertEqual(tm.allow_loops, True)
+        def func(arg1, arg2):
+            pass
+        f=tm(func)
+        self.assertEqual(f,func)
+        self.assertEqual(list(tm._func_params.keys()),['arg1','arg2'])
+        self.assertEqual(tm._p_out_routes,{'arg1':[[('s',0)]],'arg2':[[('s',0)]]})
+        self.assertEqual(tm._p_in_routes,{})
+        self.assertEqual(tm._m_in, set())
+        self.assertIsNotNone(getattr(tm,'f',None))
+        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+
+    def test_inspect_input_params_success_list(self):
+        '''transfermethod object should be able to identify params in a list '''
+        p_in={'arg1':[Datapoint('valid.datapoint'), Datasource('valid.datasource')]}
+        tm=transfer_methods.transfermethod(p_in=p_in)
+        self.assertTrue(isinstance(tm.mid,uuid.UUID))
+        self.assertEqual(tm.last_exec, None)
+        self.assertEqual(tm.min_exec_delta, None) 
+        self.assertEqual(tm.data_reqs, None)
+        self.assertEqual(tm.p_out, {})
+        self.assertEqual(tm.p_in, p_in)
+        self.assertEqual(tm.exec_on_load, False)
+        self.assertEqual(tm.allow_loops, False)
+        def func(arg1, arg2):
+            pass
+        f=tm(func)
+        self.assertEqual(f,func)
+        self.assertEqual(list(tm._func_params.keys()),['arg1','arg2'])
+        self.assertEqual(tm._p_in_routes,{'arg1':[[('i',0)],[('i',1)]]})
+        self.assertEqual(tm._p_out_routes,{})
+        self.assertEqual(tm._m_in, {Datapoint('valid.datapoint'),Datasource('valid.datasource')})
+        self.assertIsNotNone(getattr(tm,'f',None))
+        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+
+    def test_inspect_input_params_success_dict(self):
+        '''transfermethod object should be able to identify params in a dict '''
+        p_in={'arg1':{'dp':Datapoint('valid.datapoint'), 'ds':Datasource('valid.datasource')}}
+        tm=transfer_methods.transfermethod(p_in=p_in)
+        self.assertTrue(isinstance(tm.mid,uuid.UUID))
+        self.assertEqual(tm.last_exec, None)
+        self.assertEqual(tm.min_exec_delta, None) 
+        self.assertEqual(tm.data_reqs, None)
+        self.assertEqual(tm.p_out, {})
+        self.assertEqual(tm.p_in, p_in)
+        self.assertEqual(tm.exec_on_load, False)
+        self.assertEqual(tm.allow_loops, False)
+        def func(arg1, arg2):
+            pass
+        f=tm(func)
+        self.assertEqual(f,func)
+        self.assertEqual(list(tm._func_params.keys()),['arg1','arg2'])
+        self.assertEqual(tm._p_in_routes,{'arg1':[[('k','dp')],[('k','ds')]]})
+        self.assertEqual(tm._p_out_routes,{})
+        self.assertEqual(tm._m_in, {Datapoint('valid.datapoint'),Datasource('valid.datasource')})
+        self.assertIsNotNone(getattr(tm,'f',None))
+        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+
+    def test_inspect_input_params_success_class(self):
+        '''transfermethod object should be able to identify params in a user defined class instance '''
+        class MyObj:
+            def __init__(self, uri):
+                self.uri = uri
+                self.ds = Datasource('.'.join((uri,'ds')))
+                self.dp = Datapoint('.'.join((uri,'dp')))
+        p_in={'arg1':MyObj('valid')}
+        tm=transfer_methods.transfermethod(p_in=p_in)
+        self.assertTrue(isinstance(tm.mid,uuid.UUID))
+        self.assertEqual(tm.last_exec, None)
+        self.assertEqual(tm.min_exec_delta, None) 
+        self.assertEqual(tm.data_reqs, None)
+        self.assertEqual(tm.p_out, {})
+        self.assertEqual(tm.p_in, p_in)
+        self.assertEqual(tm.exec_on_load, False)
+        self.assertEqual(tm.allow_loops, False)
+        def func(arg1, arg2):
+            pass
+        f=tm(func)
+        self.assertEqual(f,func)
+        self.assertEqual(list(tm._func_params.keys()),['arg1','arg2'])
+        self.assertEqual(tm._p_in_routes,{'arg1':[[('a','__dict__'),('k','ds')],[('a','__dict__'),('k','dp')]]})
+        self.assertEqual(tm._p_out_routes,{})
+        self.assertEqual(tm._m_in, {Datasource('valid.ds'),Datapoint('valid.dp')})
+        self.assertIsNotNone(getattr(tm,'f',None))
+        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+
+    def test_inspect_input_params_success_combination(self):
+        '''transfermethod object should be able to identify params in a user defined class instance '''
+        class MyObj:
+            def __init__(self, uri):
+                self.uri = uri
+                self.elements={'metrics':[Datasource('.'.join((uri,'ds'))), Datapoint('.'.join((uri,'dp')))]}
+        p_in={'arg1':MyObj('valid')}
+        tm=transfer_methods.transfermethod(p_in=p_in)
+        self.assertTrue(isinstance(tm.mid,uuid.UUID))
+        self.assertEqual(tm.last_exec, None)
+        self.assertEqual(tm.min_exec_delta, None) 
+        self.assertEqual(tm.data_reqs, None)
+        self.assertEqual(tm.p_out, {})
+        self.assertEqual(tm.p_in, p_in)
+        self.assertEqual(tm.exec_on_load, False)
+        self.assertEqual(tm.allow_loops, False)
+        def func(arg1, arg2):
+            pass
+        f=tm(func)
+        self.assertEqual(f,func)
+        self.assertEqual(list(tm._func_params.keys()),['arg1','arg2'])
+        self.assertEqual(tm._p_in_routes,{'arg1':[[('a','__dict__'),('k','elements'),('k','metrics'),('i',0)],[('a','__dict__'),('k','elements'),('k','metrics'),('i',1)]]})
+        self.assertEqual(tm._p_out_routes,{})
+        self.assertEqual(tm._m_in, {Datasource('valid.ds'),Datapoint('valid.dp')})
+        self.assertIsNotNone(getattr(tm,'f',None))
+        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+
+    def test_inspect_output_params_success_combination(self):
+        '''transfermethod object should be able to identify params in a user defined class instance '''
+        class MyObj:
+            def __init__(self, uri):
+                self.uri = uri
+                self.elements={'metrics':[Datasource('.'.join((uri,'ds'))), Datapoint('.'.join((uri,'dp')))]}
+        p_out={'arg1':MyObj('valid')}
+        tm=transfer_methods.transfermethod(p_out=p_out)
+        self.assertTrue(isinstance(tm.mid,uuid.UUID))
+        self.assertEqual(tm.last_exec, None)
+        self.assertEqual(tm.min_exec_delta, None) 
+        self.assertEqual(tm.data_reqs, None)
+        self.assertEqual(tm.p_in, {})
+        self.assertEqual(tm.p_out, p_out)
+        self.assertEqual(tm.exec_on_load, False)
+        self.assertEqual(tm.allow_loops, False)
+        def func(arg1, arg2):
+            pass
+        f=tm(func)
+        self.assertEqual(f,func)
+        self.assertEqual(list(tm._func_params.keys()),['arg1','arg2'])
+        self.assertEqual(tm._p_out_routes,{'arg1':[[('a','__dict__'),('k','elements'),('k','metrics'),('i',0)],[('a','__dict__'),('k','elements'),('k','metrics'),('i',1)]]})
+        self.assertEqual(tm._p_in_routes,{})
+        self.assertEqual(tm._m_in, set())
+        self.assertIsNotNone(getattr(tm,'f',None))
+        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+
+    def test_process_exec_result_allow_loops(self):
+        '''transfermethod _process_exec_result should allow modifying input parameters if loops are allowed '''
+        class MySession:
+            def __init__(self):
+                self._metrics_store = MetricsStore(owner='user')
+            async def send_samples(self, samples):
+                self.samples = samples
+        p_in = {'ds':Datasource('valid.ds')}
+        p_out={'ds':None} #if arg is on p_in, no matter what we put here, only checks that the key is on p_in too
+        tm=transfer_methods.transfermethod(p_in=p_in, p_out=p_out, allow_loops=True)
+        self.assertTrue(isinstance(tm.mid,uuid.UUID))
+        self.assertEqual(tm.last_exec, None)
+        self.assertEqual(tm.min_exec_delta, None) 
+        self.assertEqual(tm.data_reqs, None)
+        self.assertEqual(tm.p_in, p_in)
+        self.assertEqual(tm.p_out, p_out)
+        self.assertEqual(tm.exec_on_load, False)
+        self.assertEqual(tm.allow_loops, True)
+        def func(ds):
+            pass
+        f=tm(func)
+        self.assertEqual(f,func)
+        self.assertEqual(list(tm._func_params.keys()),['ds'])
+        self.assertEqual(tm._p_in_routes,{'ds':[[('s',0)]]})
+        self.assertEqual(tm._p_out_routes,{})
+        self.assertEqual(tm._m_in, {Datasource('valid.ds')})
+        self.assertIsNotNone(getattr(tm,'f',None))
+        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+        my_session = MySession()
+        ds = Datasource('valid.ds')
+        ds.data = pd.Series('ds content', index=[pd.Timestamp('now',tz='utc')])
+        params = {'ds':ds}
+        expected_sample = Sample(metric=ds, ts=ds.data.index[0], data=ds.data[0])
+        loop=asyncio.get_event_loop()
+        loop.run_until_complete(tm._process_exec_result(session=my_session, params=params))
+        self.assertEqual(len(my_session.samples),1)
+        self.assertEqual(my_session.samples[0].metric, ds)
+        self.assertEqual(my_session.samples[0].ts, expected_sample.ts)
+        self.assertEqual(my_session.samples[0].data, expected_sample.data)
+
+    def test_process_exec_result_do_not_allow_loops(self):
+        '''transfermethod _process_exec_result should ignore modifying input parameters if loops aren't allowed '''
+        class MySession:
+            def __init__(self):
+                self._metrics_store = MetricsStore(owner='user')
+            async def send_samples(self, samples):
+                self.samples = samples
+        p_in = {'ds':Datasource('valid.ds')}
+        p_out={'ds':None} #if arg is on p_in, no matter what we put here, only checks that the key is on p_in too
+        tm=transfer_methods.transfermethod(p_in=p_in, p_out=p_out)
+        self.assertTrue(isinstance(tm.mid,uuid.UUID))
+        self.assertEqual(tm.last_exec, None)
+        self.assertEqual(tm.min_exec_delta, None) 
+        self.assertEqual(tm.data_reqs, None)
+        self.assertEqual(tm.p_in, p_in)
+        self.assertEqual(tm.p_out, p_out)
+        self.assertEqual(tm.exec_on_load, False)
+        self.assertEqual(tm.allow_loops, False)
+        def func(ds):
+            pass
+        f=tm(func)
+        self.assertEqual(f,func)
+        self.assertEqual(list(tm._func_params.keys()),['ds'])
+        self.assertEqual(tm._p_in_routes,{'ds':[[('s',0)]]})
+        self.assertEqual(tm._p_out_routes,{})
+        self.assertEqual(tm._m_in, {Datasource('valid.ds')})
+        self.assertIsNotNone(getattr(tm,'f',None))
+        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+        my_session = MySession()
+        ds = Datasource('valid.ds')
+        ds.data = pd.Series('ds content', index=[pd.Timestamp('now',tz='utc')])
+        params = {'ds':ds}
+        loop=asyncio.get_event_loop()
+        loop.run_until_complete(tm._process_exec_result(session=my_session, params=params))
+        self.assertEqual(len(my_session.samples),0)
+
+
+    def test_process_exec_result_allow_loops_but_existing_in_store(self):
+        '''transfermethod _process_exec_result should not send already existing samples in store '''
+        class MySession:
+            def __init__(self):
+                self._metrics_store = MetricsStore(owner='user')
+            async def send_samples(self, samples):
+                self.samples = samples
+        p_in = {'ds':Datasource('valid.ds')}
+        p_out={'ds':None} #if arg is on p_in, no matter what we put here, only checks that the key is on p_in too
+        tm=transfer_methods.transfermethod(p_in=p_in, p_out=p_out, allow_loops=True)
+        self.assertTrue(isinstance(tm.mid,uuid.UUID))
+        self.assertEqual(tm.last_exec, None)
+        self.assertEqual(tm.min_exec_delta, None) 
+        self.assertEqual(tm.data_reqs, None)
+        self.assertEqual(tm.p_in, p_in)
+        self.assertEqual(tm.p_out, p_out)
+        self.assertEqual(tm.exec_on_load, False)
+        self.assertEqual(tm.allow_loops, True)
+        def func(ds):
+            pass
+        f=tm(func)
+        self.assertEqual(f,func)
+        self.assertEqual(list(tm._func_params.keys()),['ds'])
+        self.assertEqual(tm._p_in_routes,{'ds':[[('s',0)]]})
+        self.assertEqual(tm._p_out_routes,{})
+        self.assertEqual(tm._m_in, {Datasource('valid.ds')})
+        self.assertIsNotNone(getattr(tm,'f',None))
+        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+        my_session = MySession()
+        ds = Datasource('valid.ds')
+        ds.data = pd.Series('ds content', index=[pd.Timestamp('now',tz='utc')])
+        params = {'ds':ds}
+        my_session._metrics_store.store(metric=ds, ts=ds.data.index[0], content=ds.data[0])
+        loop=asyncio.get_event_loop()
+        loop.run_until_complete(tm._process_exec_result(session=my_session, params=params))
+        self.assertEqual(len(my_session.samples),0)
 

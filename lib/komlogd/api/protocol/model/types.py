@@ -1,4 +1,5 @@
 import pandas as pd
+from copy import deepcopy
 from enum import Enum, unique
 from komlogd.api.protocol.model import validation
 
@@ -19,17 +20,22 @@ class Metrics(Enum):
     DATAPOINT               = 'p'
 
 class Metric:
-    _m_type_=None
+    _m_type_ = None
 
     def __init__(self, uri):
-        validation.validate_uri(uri)
-        self._uri=uri
+        self.uri = uri
 
     def __eq__(self, other):
         return self.uri == other.uri
 
     def __hash__(self):
-        return hash(self._uri)
+        return hash(self.uri)
+
+    def __copy__(self, memo):
+        return type(self)(self.uri)
+
+    def __deepcopy__(self, memo):
+        return type(self)(deepcopy(self.uri, memo))
 
     @property
     def uri(self):
@@ -37,6 +43,10 @@ class Metric:
 
     @uri.setter
     def uri(self, value):
+        if not getattr(self, 'uri', None):
+            validation.validate_uri(value)
+            self._uri = value
+            return
         raise TypeError('uri cannot be modified')
 
     @property
@@ -49,13 +59,13 @@ class Metric:
 
 
 class Datasource(Metric):
-    _m_type_=Metrics.DATASOURCE
+    _m_type_ = Metrics.DATASOURCE
 
     def __init__(self, uri):
         super().__init__(uri=uri)
 
 class Datapoint(Metric):
-    _m_type_=Metrics.DATAPOINT
+    _m_type_ = Metrics.DATAPOINT
 
     def __init__(self, uri):
         super().__init__(uri=uri)

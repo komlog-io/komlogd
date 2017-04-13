@@ -80,6 +80,16 @@ class MetricsStore:
         except IndexError:
             pass
 
+    def isin(self, metric, ts, content):
+        guri = uri.get_global_uri(metric, owner=self.owner)
+        if not guri in self._series:
+            return False
+        elif not ts in self._series[guri]:
+            return False
+        elif not self._series[guri][ts] == content:
+            return False
+        return True
+
     def run_maintenance(self):
         now = pd.Timestamp('now',tz='utc')
         if now - self.maintenance_exec_delta > self._last_maintenance_exec:

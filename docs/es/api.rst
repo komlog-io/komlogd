@@ -3,7 +3,7 @@
 API
 ===
 
-Komlogd puede importarse en otras aplicaciones para utilizarse como librería, y así
+Komlogd puede utilizarse como librería en otras aplicaciones, y así
 integrar en ellas la funcionalidad ofrecida por Komlog.
 
 .. note::
@@ -11,6 +11,10 @@ integrar en ellas la funcionalidad ofrecida por Komlog.
    komlogd utiliza `asyncio <https://docs.python.org/3/library/asyncio.html>`_ internamente,
    por lo que es necesario que la aplicación donde se integre corra un loop de
    asyncio para su funcionamiento.
+
+.. warning::
+
+   komlogd se encuentra bajo desarrollo muy activo, por lo que la API puede cambiar.
 
 Inicio de sesión en Komlog
 --------------------------
@@ -96,7 +100,7 @@ está identificada unívocamente por lo que llamamos *uri*. A esta estructura la
 de datos del usuario*. A los diferentes valores que puede tomar una métrica a lo
 largo del tiempo se les conoce como *samples (muestras)*.
 
-En el modelo de datos del usuario se pueden crear métricas de los siguientes tipos:
+En el modelo de datos del usuario se pueden crear métricas de dos tipos:
 
 * **Datasource**
 * **Datapoint**
@@ -214,93 +218,122 @@ Funciones de transferencia
 komlogd puede ejecutar una función cada vez que una métrica se actualiza. A este
 tipo de funciones les llamamos *funciones de transferencia*.
 
-Para crear una función de transferencia simplemente hay que aplicarle el decorador *@transfermethod*. Este decorador admite los
-siguientes parámetros:
+El nombre *función de transferencia* está inspirado en los diferentes bloques que
+componen un sistema de comunicaciones. En este tipo de sistemas, cada bloque
+recibe una señal de entrada, realiza una serie de operaciones
+sobre ella, como puede ser el filtrado, muestreo, amplificación, etc, dando lugar a
+una señal de salida. A la relación entre la señal de salida y la de entrada se le llama
+función de transferencia.
 
-* **uris**: lista con las uris de las métricas a las que queremos suscribirnos.
-* **data_reqs**: objeto de tipo DataRequirements, donde le indicamos los requisitos a nivel de datos que tiene la función para
-  su correcta ejecución.
-* **min_exec_delta**: objecto tipo pandas.Timedelta. Este parámetro indica el periodo mínimo entre ejecuciones de la función. Por defecto, komlogd ejecutará
-  la función de transferencia cada vez que se reciban muestras en los métricas suscritas, sin embago, este comportamiento puede no siempre
-  ser el deseado, por lo que este parámetro indica a komlogd que entre ejecución y ejecución al menos debe haber pasado el tiempo especificado.
-* **exec_on_load**: Por defecto *False*. Indica si se debe ejecutar la función
-  nada más cargarse o, por el contrario, esperar a que se reciba la primera
-  actualización en las métricas suscritas.
+.. image:: _static/transfer_method.png
 
-El siguiente código muestra como se crearía una función de transferencia:
+Las *funciones de transferencia* de komlogd trabajan de forma similar. Reciben una señal
+de entrada (series temporales) sobre la que realizan una serie de operaciones para
+dar lugar a una señal de salida.
+
+Por defecto, komlogd ejecuta la función de transferencia cada vez que se produce una actualización
+de la señal de entrada, es decir, cada vez que una métrica de nuestro modelo de datos se actualiza.
+
+Para crear una función de transferencia simplemente hay que aplicar
+a la función en cuestión el decorador *@transfermethod*.
+
+Como se vio en el punto :ref:`configuracion`, tendríamos que añadir
+un bloque *transfers* con el archivo que contiene las funciones decoradas para que
+se carguen durante el inicio de komlogd.
+
+El decorador *@trasnfermethod* admite los siguientes parámetros:
+
+* **p_in**: diccionario donde se detallan los parámetros de entrada que recibe nuestra función de transferencia.
+* **p_out**: diccionario donde se detallan los parámetros de salida que genera nuestra función de transferencia.
+* **data_reqs**: objeto de tipo DataRequirements, donde le indicamos los requisitos
+  a nivel de datos que tiene la función para su correcta ejecución.
+* **min_exec_delta**: objecto tipo pandas.Timedelta. Este parámetro indica el periodo
+  mínimo entre ejecuciones de la función. Por defecto, komlogd ejecutará la función de
+  transferencia cada vez que se reciban muestras en los métricas suscritas, sin embargo,
+  este comportamiento puede no siempre ser el deseado, por lo que este parámetro indica
+  a komlogd que entre ejecución y ejecución al menos debe haber pasado el tiempo especificado.
+* **exec_on_load**: Por defecto *False*. Indica si se debe ejecutar la función nada más cargarse
+  o, por el contrario, esperar a que se reciba la primera actualización en las métricas suscritas.
+* **allow_loops**: Por defecto *False*. Indica si una función de transferencia puede actualizar
+  métricas que también se utilizan como señal de entrada. Activar esta opción puede dar lugar a bucles
+  infinitos, puesto que actualizar la señal de entrada supondría una nueva ejecución de la función
+  de transferencia, por lo que hay que tener cuidado a la hora de hacerlo.
+
+
+Para mostrar el funcionamiento, vamos a crear una función de transferencia
+que realice la operación *suma* sobre dos series temporales. El código sería el siguiente
 
 .. code:: python
 
     from komlogd.api.transfer_methods import transfermethod
+    from komlogd.api.protocol.types import Datapoint
 
-    @transfermethod(uris=['cpu.system','cpu.user'])
-    async def example():
-        print('hello komlog.')
+    p_in = {'x':Datapoint('my_uris.value1'),'y':Datapoint('my_uris.value2')}
+    p_out = {'z':Datapoint('my_uris.total')}
+
+    @transfermethod(p_in=p_in, p_out=p_out)
+    def sum(x,y,z):
+        z.data = x.data + y.data
+
+En el ejemplo anterior creamos la función *sum* que recibe tres parámetros *x*, *y* y *z*.
+Cuando aplicamos el decorador a la función estamos indicando lo siguiente:
+
+    - **x** e **y** son parámetros de entrada.
+    - **z** es parámetro de salida.
+    - Como parámetro **x** tiene que pasar el objeto *Datapoint('my_uris.value1')*
+    - Como parámetro **y** tiene que pasar el objeto *Datapoint('my_uris.value2')*
+    - Como parámetro **z** tiene que pasar el objeto *Datapoint('my_uris.total')*
 
 
-En el ejemplo anterior, cada vez que se actualicen las métricas *cpu.system* y *cpu.user* komlogd ejecutaría la función *example*.
-Como se puede ver, example es una corrutina. **El decorador @transfermethod puede aplicarse tanto a funciones normales como a corrutinas**.
+Cuando definimos un parámetro de **entrada**, lo que le estamos indicando a komlogd, es que
+se suscriba a la métrica en nuestro modelo de datos y ejecute la función cada vez que dicha
+métrica se actualice.
 
+Al definir un parámetro de **salida**, komlogd enviará a Komlog cualquier nuevo sample que
+encuentre en dicho parámetro una vez finalizada la ejecución de la función de transferencia.
 
-Una función de transferencia puede actualizar métricas de nuestro modelo de datos. Para ello debe devolver
-una lista con las muestras que se deben enviar a Komlog:
+Cuando komlogd lanza la ejecución de una función de transferencia, a cada objeto de tipo
+*Datapoint* o *Datasource* le añade el atributo *data*, con los datos necesarios para su ejecución.
+El atributo *data* es un objeto tipo `pandas.Series <http://pandas.pydata.org/pandas-docs/stable/generated/pandas.Series.html>`_.
+Si el parámetro es de entrada, la serie se rellena con los datos de nuestra métrica,
+en cambio, si el atributo es de salida, el parámetro data será una serie vacía.
+
+La cantidad de datos que tendrá el atributo *data* de cada uno de los parámetros
+de entrada, viene definido por el parámetro **data_reqs** del decorador *@transfermethod*.
+Si no pasamos este parámetro al decorador, komlogd añadirá al campo data una serie
+con el último valor de la métrica. Si la función necesita más datos para su
+ejecución, deberemos indicarlo mediante este parámetro.
+
+Se puede aplicar el decorador *transfermethod* a una función tantas veces como se necesite,
+simplemente apilando las llamadas al mismo. Por ejemplo, en la función anterior,
+si quisiésemos ejecutar la función con dos grupos de métricas diferentes, bastaría con aplicar
+el decorador a la función una vez por cada grupo de métricas:
 
 .. code:: python
 
-    import pandas as pd
     from komlogd.api.transfer_methods import transfermethod
-    from komlogd.api.protocol.model.types import Datasource, Sample
-    from komlogd.api.protocol.model.transfer_methods import DataRequirements
+    from komlogd.api.protocol.types import Datapoint
 
-    @transfermethod(uris=['cpu.system','cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
-    def summary(ts, updated, data, others):
-        result={'samples':[]}
-        for metric in updated:
-            int_data=data[metric][ts-pd.Timedelta('60 min'):ts]
-            info=str(int_data.describe())
-            stats = Datasource(uri='.'.join((metric.uri,'last_60min_stats')))
-            sample = Sample(metric=stats, data=info, ts=ts)
-            result['samples'].append(sample)
-        return result
+    p_in1 = {'x':Datapoint('my_uris1.value1'),'y':Datapoint('my_uris1.value2')}
+    p_out1 = {'z':Datapoint('my_uris1.total')}
 
-En el ejemplo anterior nos suscribimos a las métricas *cpu.system* y *cpu.user* y realizamos una serie de cálculos estadísticos sobre
-sus datos de la última hora. Posteriormente se escriben los resultados en las métricas *cpu.system.last_60min_stats* y *cpu.user.last_60min_stats*.
-La función se ejecutará cada vez que se las métricas *cpu.system* y/o *cpu.user* se actualicen.
+    p_in2 = {'x':Datapoint('my_uris2.value1'),'y':Datapoint('my_uris2.value2')}
+    p_out2 = {'z':Datapoint('my_uris2.total')}
 
-A continuación la comentamos en detalle.
+    @transfermethod(p_in=p_in1, p_out=p_out1)
+    @transfermethod(p_in=p_in2, p_out=p_out2)
+    def sum(x,y,z):
+        z.data = x.data + y.data
 
-* En primer lugar aplicamos a la función *summary* el decorador *@transfermethod* con los siguientes parámetros:
-    * **uris=['cpu.system','cpu.user']**. Con este parámetro indicamos que la función se suscribe a las métricas *cpu.system* y
-      *cpu.user*.
-    * **data_reqs=DataRequirements(past_delta=pd.Timedelta('1h'))**. Aquí le indicamos que la función necesita 1 hora de datos
-      para su correcta ejecución.
-* La función *summary* recibe una serie de parámetros (Es opcional que nuestra función reciba estos parámetros. Si no los va a necesitar no hace falta que los definamos):
-    * **ts**: objecto pandas.Timestamp. Es el timestamp de los samples que provocaron la ejecución de la función.
-    * **updated**: Lista de métricas actualizadas en esta ejecución.
-    * **data**: Diccionario que contiene una key por cada una de las métricas suscritas. El valor es un objeto tipo pandas.Series, con los datos de la métrica.
-    * **others**: Lista con métricas a los que está suscrita la función pero que no han provocado la ejecución actual.
-* En la primera línea de la función *summary* declaramos el diccionario result. Éste contiene la clave *samples* que será la que almacene las muestras a enviar a Komlog.
-* A continuación, por cada una de las métricas que se han actualizado hacemos lo siguiente:
-    * Obtenemos los datos de la última hora.
-    * Obtenemos el resultado al aplicarles la función *describe()* (Esta es una función del módulo pandas que obtiene una serie de valores estadísticos sobre una serie).
-    * Creamos un Datasource cuya *uri* será la de la métrica + *.last_60min_stats*, es decir, crearíamos **cpu.system.last_60_min_stats** y **cpu.user.last_60_min_stats**.
-    * Creamos un Sample del datasource y establecemos los datos y el timestamp.
-    * Añadimos el sample al listado de samples del diccionario result.
-* Por último la función devuelve el diccionario *result*, con las muestras a enviar a Komlog.
+De esta forma estamos definiendo dos funciones de transferencia independientes, cada una de ellas
+asociada a las métricas que reciben como parámetro, y que se ejecutarán de
+forma independiente cada vez que alguna de sus métricas de entrada se actualice.
 
-Se puede aplicar el decorador *transfermethod* a una función tantas veces como se necesite, simplemente apilando las llamadas al mismo. Por ejemplo, en la función anterior, si quisiésemos aplicar la función a dos grupos de métricas diferentes, bastaría con aplicar el decorador a la función una vez por cada grupo de métricas:
 
-.. code:: python
+Trabajando con métricas de otros usuarios
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-    @transfermethod(uris=['host1.cpu.system','host1.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
-    @transfermethod(uris=['host2.cpu.system','host2.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
-    def summary(ts, updated, data, others):
-        ...
-
-Trabajando con métricas remotas
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Komlog permite compartir partes del modelo de datos con otros usuarios.
+Komlog permite a sus usuarios compartir métricas entre ellos en tiempo real.
 
 .. note::
     Para compartir datos, accede al `menú de configuración web de Komlog <https://www.komlog.io/config>`_.
@@ -310,35 +343,61 @@ Komlog permite compartir partes del modelo de datos con otros usuarios.
     momento de compartirla.
 
     Al compartir las métricas en modo solo lectura, si una *función de transferencia* trata de actualizar
-    una métrica remota, dicha actualización fallará. El usuario **sólo puede modificar su
+    una métrica remota, dicha actualización fallará. Cada usuario **sólo puede modificar su
     modelo de datos**.
 
-Esta funcionalidad permite la creación de aplicaciones que utilicen modelos de datos distribuidos.
-La forma para indicar una métrica remota es anteponer el usuario al nombre de la uri::
+Gracias a esta funcionalidad podemos crear aplicaciones que utilicen modelos
+de datos distribuidos entre varios usuarios.
+La forma de referirnos a una métrica de otro usuario es anteponer el nombre
+del usuario al nombre de la uri::
 
     uri_remota = 'user:uri'
 
-Por ejemplo, si el usuario *my_friend* nos compartiese la uri *host1.cpu*, podríamos crear
-una función de transferencia que se suscribiese a *host1.cpu.system* y *host1.cpu.user* de la siguiente forma:
+Por ejemplo, si el usuario *production* nos compartiese las uris *host1.cpu.user* y *host1.cpu.system*, podríamos aplicar nuestra función suma a ambas señales de la siguiente manera:
 
 .. code:: python
 
-    @transfermethod(uris=['my_friend:host1.cpu.system','my_friend:host1.cpu.user'], data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
-    def summary(ts, updated, data, others):
-        ...
+    from komlogd.api.transfer_methods import transfermethod
+    from komlogd.api.protocol.types import Datapoint
 
-Un mismo transfer method se puede suscribir a métricas propias y remotas:
+    p_in = {'x':Datapoint('production:host1.cpu.system'),'y':Datapoint('production:host1.cpu.user')}
+    p_out = {'z':Datapoint('production_hosts.host1.cpu.sum')}
+
+    @transfermethod(p_in=p_in, p_out=p_out)
+    def sum(x,y,z):
+        z.data = x.data + y.data
+
+Tipo de parámetros de entrada y salida
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Una función de transferencia puede recibir como parámetros de entrada y/o salida
+cualquier tipo de objeto. komlogd se encarga de buscar en ellos los objetos de tipo
+Datasource o Datapoint y les añadirá los datos que corresponda en cada ejecución.
+
+Por ejemplo, a continuación vamos a adaptar nuestra función de suma anterior para
+que sea capaz de sumar objectos de nuestra clase Vector, definida a continuación,
+y que representa vectores de 3 dimensiones.
+
+El código quedaría de la siguiente manera:
 
 .. code:: python
 
-    uris = [
-        'my_friend:host1.cpu.system',
-        'my_friend:host1.cpu.user',
-        'host1.cpu.system',
-        'host1.cpu.user'
-    ]
+    from komlogd.api.transfer_methods import transfermethod
+    from komlogd.api.protocol.types import Datapoint
 
-    @transfermethod(uris=uris, data_reqs=DataRequirements(past_delta=pd.Timedelta('1h')))
-    def summary(ts, updated, data, others):
-        ...
+    class Vector:
+
+        def __init__(self, base_uri):
+            self.x = Datapoint('.'.join((base_uri,'x')))
+            self.y = Datapoint('.'.join((base_uri,'y')))
+            self.z = Datapoint('.'.join((base_uri,'z')))
+
+    p_in = {'u':Vector('vector1'),'v':Vector('vector2')}
+    p_out = {'w':Vector('vector3')}
+
+    @transfermethod(p_in=p_in, p_out=p_out)
+    def v_sum(u,v,w):
+        w.x.data = u.x.data + v.x.data
+        w.y.data = u.y.data + v.y.data
+        w.z.data = u.z.data + v.z.data
 

@@ -222,7 +222,7 @@ class SendDpData(KomlogMessage):
     @content.setter
     def content(self, content):
         validation.validate_dp_content(content)
-        self._content= content if isinstance(content,decimal.Decimal) else decimal.Decimal(str(content))
+        self._content = content if isinstance(content,decimal.Decimal) else decimal.Decimal(str(content))
 
     def to_dict(self):
         ''' returns a JSON serializable dict '''

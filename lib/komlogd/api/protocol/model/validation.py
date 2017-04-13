@@ -52,11 +52,14 @@ def validate_ds_content(value):
     return True
 
 def validate_dp_content(value):
-    try:
-        num=decimal.Decimal(value)
+    if isinstance(value,int) or isinstance(value,float):
         return True
-    except (decimal.InvalidOperation, ValueError, TypeError):
-        raise TypeError('datapoint value not valid')
+    else:
+        try:
+            num=decimal.Decimal(str(value))
+            return True
+        except (decimal.InvalidOperation, ValueError, TypeError):
+            raise TypeError('datapoint value not valid')
 
 def is_message_sequence(value):
     if not (isinstance(value,str) and len(value)==20):

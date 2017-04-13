@@ -147,13 +147,13 @@ Replacing *<path_to_file>* with the file's path.
 You can add as many *external_job_file* statements as you need.
 
 Transfer methods configuration
------------------------------
+------------------------------
 
 Komlog allows the user to subscribe to any of his *uris* and receive notifications when
 new data is received on them.
 
-A *transfer method* is the function that is executed when komlogd receives notifications
-about subscribed uris.
+A *transfer method* is a function that is executed when komlogd receives notifications
+about subscribed uris. Users can define their own *transfer methods*.
 
 With *transfer methods* you can automate tasks, generate alarms, communicate with external
 services, analyze data in real time, and basically any task associated to events.
