@@ -38,7 +38,7 @@ just run the previous command and `all dependencies will be installed automatica
 2. Create configuration file
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Once installed, proceed to `run komlogd for the first time <http://komlogd.readthedocs.io/en/latest/install.html#first-execution`_. During this run, it will
+Once installed, proceed to `run komlogd for the first time <http://komlogd.readthedocs.io/en/latest/install.html#first-execution>`_. During this run, it will
 create configuration file, private and public keys and finally it will exit.
 
 .. code::
@@ -61,7 +61,7 @@ Edit configuration file and modify *username* block with your username.
 4. Add komlogd public key to Komlog authorized keys
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Go to `Komlog Configuration Page <https://www.komlog.io/config>_` and add the contents of
+Go to `Komlog Configuration Page <https://www.komlog.io/config>`_ and add the contents of
 your recently created public key file to the `authorized list <http://komlogd.readthedocs.io/en/latest/configuration.html#komlogd-authorization>`_.
 
 
