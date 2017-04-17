@@ -97,7 +97,12 @@ async def send_samples(session, samples):
         else:
             raise TypeError('invalid metric type')
     msgs.sort(key=lambda x: x.ts)
+    result= {'success':True, 'error':''}
     for msg in msgs:
         rsp = await session._await_response(msg)
         session._mark_message_done(msg.seq)
+        if rsp.status not in (Status.MESSAGE_ACCEPTED_FOR_PROCESSING, Status.MESSAGE_EXECUTION_OK):
+            result['success']=False
+            result['msg']=' '.join(('code:',rsp.error,rsp.reason))
+    return result
 

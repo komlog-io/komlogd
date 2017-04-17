@@ -56,12 +56,30 @@ al listado de claves autorizadas. Para ello realizaremos lo siguiente:
 .. image:: _static/new_key.png
 
 
+Enviando datos por primera vez a Komlog
+---------------------------------------
+
+Vamos a enviar nuestros primeros datos a Komlog.
+Para este ejemplo se enviará la salida del comando *df -k*. En Komlog, el usuario organiza sus datos
+como si fuese un sistema de archivos, por lo que a los datos que vamos a subir le asignaremos la *uri*
+(equivalente al path de un sistema de archivos) **host.occupation**.
+
+Para subir los datos ejecutamos::
+
+    df -k | komlogd -u host.occupation
+
+Si todo ha ido correctamente, en Komlog aparecerá el contenido que acabamos de subir asociado a la
+ruta host.occupation. Sobre esos datos podemos identificar directamente las variables que queramos
+monitorizar, compartir con otros usuarios, etc.
+
+
 Configuración de tareas programadas
 -----------------------------------
 
-komlogd permite la ejecución de tareas programadas y el envío del resultado a Komlog.
+komlogd permite programar la ejecución periódica de comandos para subir su salida automáticamente a Komlog.
 Esta funcionalidad te permite visualizar estos resultados via web, identificar variables
-directamente en los textos, o compartir el contenido con otros usuarios.
+directamente en los textos, o compartir el contenido con otros usuarios, utilizar esas variables
+para automatizar otras operaciones, etc.
 
 Supongamos que queremos enviar cada hora la salida del comando "*df -k*" a Komlog.
 
@@ -175,6 +193,8 @@ datos de una o varias *uris*.
 Esta funcionalidad la podemos utilizar para automatizar tareas, generación de alarmas,
 comunicación con servicios externos, análisis de datos en tiempo real y, en definitiva, cualquier tarea
 que se nos ocurra que pueda estar asociada a eventos.
+
+Gracias a esta funcionalidad, podemos construir sistemas basados en arquitectura lambda.
 
 En el apartado :ref:`funciones_de_transferencia` se explica cómo crear este tipo de funciones
 correctamente.

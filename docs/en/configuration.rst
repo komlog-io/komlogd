@@ -45,15 +45,31 @@ in the authentication process. To do it, follow these steps:
 
 .. image:: _static/new_key.png
 
+Sending data to Komlog for the first time
+-----------------------------------------
+
+Let's send data to Komlog for the first time.
+In this example, we are going to send the *df -k* command's output, so we can monitor
+disk occupation in our host later. In Komlog, users organize their data in a tree like structure called
+the **data model**. Every element in the user's data model is identified by its **uri**.
+In this example, we are going to identify our occupation data with the uri *host.occupation*.
+
+To upload the data, we execute the following::
+
+    df -k | komlogd -u host.occupation
+
+If everything went right, we should see the data in Komlog web, associated to the uri *ĥost.occupation*
+in our data model. Now, we can identify variables, send the content to other users, automate other
+tasks based on this content, etc.
+
 
 Scheduled jobs configuration
 ----------------------------
 
-komlogd lets you schedule periodic jobs and send its outputs to Komlog.
-This functionality allows you to see commands or scripts outputs on Komlog web,
-identify variables directly on the texts, share them to other users, etc.
+komlogd lets you schedule command executions and send their outputs to Komlog.
+This functionality allows you to periodically send commands or scripts outputs to Komlog.
 
-Supose we want to send to Komlog the result of executing the command **df -k** every hour.
+Suppose we want to send to Komlog the result of executing the command **df -k** every hour.
 
 To accomplish that, we should add to komlogd's configuration file (**komlogd.yaml**) the
 following **job** block::
@@ -69,7 +85,7 @@ A *job block* is defined with the following parameters:
 
 * **uri**: the identifier associated with this job's data.
 
-Its like a path in user's data. Every user in Komlog can organize her time series in a structure like a filesystem. To identify each element in the structure we use what we call the **uri**.
+Its like a path in user's data. Every user in Komlog can organize her time series in a tree like structure, that we call the *data model* (like a file system). Every element in the data model is identified by the **uri** (like the element path).
 
 We can nest our information in different levels using the dot character (.) For example, if we have uris *system.info.disk*, *system.info.disk.sda1* and *system.info.disk.sda2*, Komlog will nest them this way::
 
@@ -93,7 +109,7 @@ We can nest our information in different levels using the dot character (.) For 
 
 * **command**: The command to execute.
 
-Can be an operating system command or any script. komlogd will send the command/script standard output to Komlog.
+It can be an operating system command or a script. komlogd will send the command/script standard output to Komlog.
 
 .. important::
     The command parameter cannot contain special command line characters like **pipes (|)** or **redirections (<,>)**.
@@ -130,7 +146,7 @@ security reasons, **komlogd will not execute more than one instance of each job 
 Loading jobs from external files
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-You can tell komlogd to load jobs configuration from an external file instead of adding them
+You can tell komlogd to load the jobs configuration from an external file instead of adding them
 directly to *komlogd.yaml*.
 
 To achieve this:
@@ -149,14 +165,13 @@ You can add as many *external_job_file* statements as you need.
 Transfer methods configuration
 ------------------------------
 
-Komlog allows the user to subscribe to any of his *uris* and receive notifications when
-new data is received on them.
-
-A *transfer method* is a function that is executed when komlogd receives notifications
-about subscribed uris. Users can define their own *transfer methods*.
+Komlog allows users to subscribe to any *uri* from their data model and execute a function when
+new data is received or updated. We call this functions **transfer methods**.
 
 With *transfer methods* you can automate tasks, generate alarms, communicate with external
 services, analyze data in real time, and basically any task associated to events.
+
+This functionality allows you to build a lambda-based systems architecture.
 
 On chapter :ref:`transfer_methods` we explain how to create this type of functions.
 

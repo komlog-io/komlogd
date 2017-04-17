@@ -14,11 +14,12 @@ KOMLOG_WS_URL = 'https://agents.komlog.io/'
 
 
 class KomlogSession:
-    def __init__(self, username, privkey, loop=None):
+    def __init__(self, username, privkey, loop=None, load_tm=True):
         loop = loop or asyncio.get_event_loop()
         self._loop = loop
         self.username = username
         self.privkey = privkey
+        self._load_tm = load_tm
         self._metrics_store = store.MetricsStore(owner=self.username)
         self._transfer_methods = transfer_methods.TransferMethodsIndex(owner=self.username)
         self._session = None
@@ -81,7 +82,8 @@ class KomlogSession:
             logging.logger.info('Initializing websocket connection')
             await self._ws_connect()
             self._q_msg_workers.start()
-            self._load_static_transfer_methods()
+            if self._load_tm:
+                self._load_static_transfer_methods()
             logging.logger.info('Entering loop')
             self._loop_future = asyncio.ensure_future(self._session_loop(), loop=self._loop)
             self._session_future = asyncio.futures.Future(loop=self._loop)
@@ -235,5 +237,4 @@ class KomlogSession:
         result = await prproc.send_samples(self, samples)
         logging.logger.debug('resultado: {}'.format(str(result)))
         return result
-
 

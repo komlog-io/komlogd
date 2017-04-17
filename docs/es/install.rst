@@ -41,10 +41,10 @@ Primera ejecución
 
 Una vez instalado el agente, lo arrancaremos ejecutando el siguiente comando::
 
-    komlogd &
+    komlogd
 
 Durante esta primera ejecución, komlogd inicializará los archivos de configuración y creará el par de claves RSA utilizado para la comunicación con `Komlog <http://www.komlog.io>`_.
-Debido a que el agente crea el archivo de configuración sin establecer variables necesarias para su funcionamiento, como por ejemplo el usuario de acceso a `Komlog <http://www.komlog.io>`_, el agente terminará su ejecución.
+Puesto que el archivo de configuración se crea sin establecer el usuario de acceso a `Komlog <http://www.komlog.io>`_, el agente terminará su ejecución.
 
 En el directorio ``$HOME`` del usuario que lanzó la ejecución de komlogd se debería haber creado el directorio ``.komlogd`` con la siguiente estructura::
 

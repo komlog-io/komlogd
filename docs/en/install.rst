@@ -43,9 +43,9 @@ Once installed, we can start komlogd with this command::
 
     komlogd &
 
-During its first execution, komlogd will create and initialize the necesary files and RSA keys
-needed for communicating with `Komlog <http://www.komlog.io>`_. After the initialization komlogd will
-terminate.
+During its first execution, komlogd will create the necesary files and RSA keys
+needed for communicating with `Komlog <http://www.komlog.io>`_. After the creation komlogd will
+terminate, so you can complete it with your username.
 
 By default komlogd will create a new directory inside user's ``$HOME`` directory called ``.komlogd`` with the following contents::
 
