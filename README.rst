@@ -10,8 +10,8 @@ execution platform aimed at time series visualization and analysis.
 
 Komlog is built for SREs and Devops who need a tool to:
 
-- Create graphs quick and easily from plain texts (Forget about parsing command or script outputs).
-- Share or use data from others easy and precisely (No more excels, mails, csvs, etc for sharing data).
+- Create graphs quick and easily from plain texts (forget about parsing commands or scripts outputs).
+- Share or use data from others easy and precisely (avoid sharing data through emails, csv files, etc).
 - Monitor and analyze data, building powerful real-time applications adapted to your needs and easily extendable.
 
 .. image:: https://cloud.githubusercontent.com/assets/2930882/25127033/a6a66c14-2434-11e7-9852-b5bac6cd38dc.png
@@ -92,7 +92,8 @@ komlogd has some common use cases:
 
 - Run komlogd in daemon mode, schedule periodic command executions, and send their outputs to Komlog.
 - Subscribe to elements in your data model, and build a lambda-based system architecture,
-  executing functions when your data model changes.
+  executing user defined functions when your data model changes. This can be used, for example,
+  for alerting, anomaly detection, external service notification, reports generation, etc.
 - Import komlogd as a module in your applications and add its functionality to them.
 
 Check out the documentation for more info about how to use komlogd in these scenarios:
