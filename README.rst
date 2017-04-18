@@ -14,6 +14,10 @@ Komlog is built for SREs and Devops who need a tool to:
 - Share or use data from others easy and precisely (No more excels, mails, csvs, etc for sharing data).
 - Monitor and analyze data, building powerful real-time applications adapted to your needs and easily extendable.
 
+.. image:: https://cloud.githubusercontent.com/assets/2930882/25127033/a6a66c14-2434-11e7-9852-b5bac6cd38dc.png
+   :alt: Komlog home page
+   :target: https://cloud.githubusercontent.com/assets/2930882/25127033/a6a66c14-2434-11e7-9852-b5bac6cd38dc.png
+
 
 Getting started
 ---------------
