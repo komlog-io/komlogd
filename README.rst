@@ -70,9 +70,7 @@ your recently created public key file to the `authorized list <http://komlogd.re
 5. Sending data
 ^^^^^^^^^^^^^^^
 
-.. note::
-
-    Sending data is as simple as passing any file or command output to komlogd stdin.
+**Sending data is as simple as passing any file or command output to komlogd stdin.**
 
 Choose the command you want (*df -k* in this example), and redirect its output to komlogd.
 
