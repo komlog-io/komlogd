@@ -61,56 +61,33 @@ Enviando datos por primera vez a Komlog
 
 Vamos a enviar nuestros primeros datos a Komlog.
 Para este ejemplo se enviará la salida del comando *df -k*. En Komlog, el usuario organiza sus datos
-como si fuese un sistema de archivos, por lo que a los datos que vamos a subir le asignaremos la *uri*
+como si fuese un sistema de archivos, por lo que a los datos que vamos a subir le asignaremos la **uri**
 (equivalente al path de un sistema de archivos) **host.occupation**.
 
 Para subir los datos ejecutamos::
 
     df -k | komlogd -u host.occupation
 
-Si todo ha ido correctamente, en Komlog aparecerá el contenido que acabamos de subir asociado a la
-ruta host.occupation. Sobre esos datos podemos identificar directamente las variables que queramos
+Si todo ha ido correctamente, en nuestra `página principal de Komlog <https://www.komlog.io/home>`_ aparecerá
+el contenido que acabamos de subir asociado a la
+ruta *host.occupation*. Sobre esos datos podemos identificar directamente las variables que queramos
 monitorizar, compartir con otros usuarios, etc.
 
+Ahora podemos programar la ejecución del comando anterior para subir los datos periódicamente a Komlog. Esto lo
+podemos hacer a través del cron del usuario, de systemd, etc. Cada vez que komlog reciba estos datos identificará
+automáticamente las métricas que le hayamos indicado.
 
-Configuración de tareas programadas
------------------------------------
 
-komlogd permite programar la ejecución periódica de comandos para subir su salida automáticamente a Komlog.
-Esta funcionalidad te permite visualizar estos resultados via web, identificar variables
-directamente en los textos, o compartir el contenido con otros usuarios, utilizar esas variables
-para automatizar otras operaciones, etc.
+Puesto que las métricas en Komlog se almacenan de forma estructurada, como si de un sistema de archivos
+se tratase, existe la posibilidad de crear varios niveles de métricas anidadas.
+El separador de niveles en Komlog es el punto (.). Por ejemplo, si tenemos las siguientes
+uris: *system.info.disk*, *system.info.disk.sda1* y *system.info.disk.sda2*, éstas se anidarían de la siguiente manera::
 
-Supongamos que queremos enviar cada hora la salida del comando "*df -k*" a Komlog.
-
-Para ello editaríamos el archivo de configuración de komlogd (**komlogd.yaml**) y añadiríamos
-un bloque **job** como el siguiente::
-
-    - job:
-        uri: system.info.disk
-        command: df -k
-        enabled: yes
-        schedule:
-            - '0 * * * *'
-
-Los parámetros que definen el *bloque job* son los siguientes:
-
-* **uri**: La uri es un identificador único que asignamos a nuestros datos dentro de Komlog.
-
-En Komlog, todos los datos que el usuario sube se organizan en un árbol como si de
-un sistema de ficheros se tratara. Cada identificador dentro de este árbol se conoce
-como **uri**.
-
-La *uri* identifica de forma unívoca el dato que estamos subiendo, permitiéndonos
-identificarlos y localizarlos rápidamente. Al igual que con un sistema de ficheros,
-existe la posibilidad de anidar los datos en diferentes niveles. Si en sistemas
-*UNIX* se utiliza el carácter */* para ello, en Komlog se utiliza el punto *.*
-
-Por ejemplo, si tenemos las siguientes uris: *system.info.disk* y *system.info.disk.sda1*, éstas se
-anidarían de la siguiente manera::
-    
-    system.info.disk
-    └── sda1
+    system
+    └─ info
+       └─ disk
+          ├─ sda1
+          └─ sda2
 
 .. important::
     Una uri puede contener **exclusivamente** los siguientes caracteres:
@@ -125,64 +102,6 @@ anidarían de la siguiente manera::
 
     La uri **no puede empezar** por el carácter especial punto (.).
 
-* **command**: Es el comando a ejecutar.
-
-Se puede indicar un comando del sistema operativo o cualquier script. La salida por pantalla será lo que se envíe
-a Komlog (La salida por *stdout*, la salida *stderr* no se envía).
-
-.. important::
-    Hay que tener en cuenta que en el comando a ejecutar no se pueden añadir caracteres especiales como son las **tuberías (|)**, o
-    **redirecciones (<,>)**, por lo que si se desean ejecutar comandos enlazados mediantes tuberías o redirecciones habría que
-    hacerlo en un script.
-
-* **enabled**: Puede tomar los valores *yes* o *no*. Indica si el *job* está habilitado.
-
-* **schedule**: El schedule determina cuándo se ejecutará el job. Se utiliza el siguiente formato::
-
-         ┌───────────── minutos (0 - 59)
-         │ ┌────────────── horas (0 - 23)
-         │ │ ┌─────────────── día del mes (1 - 31)
-         │ │ │ ┌──────────────── mes (1 - 12)
-         │ │ │ │ ┌───────────────── día de la semana (0 - 6) (Domingo a Sábado)
-         │ │ │ │ │
-         │ │ │ │ │
-         │ │ │ │ │
-         * * * * *
-
-Además acepta los siguientes caracteres especiales:
-
-* El asterisco (*) para indicar todos los posibles valores de un grupo.
-* La coma (,) para indicar varios valores en un grupo.
-* El carácter */* para indicar los valores de una división cuyo resto sea 0. Por ejemplo, en lugar de indicar
-  los minutos *0,10,20,30,40,50* podemos indicar *\*/10*.
-
-El parámetro schedule permite indicar un listado de ellos, para así poderlo ejecutar en base a diferentes planificaciones.
-
-Se pueden añadir tantos *bloques job* como se desee. Cada uno se lanza en un proceso independiente, por lo que su ejecución no interfiere
-con la ejecución de komlogd, tan solo hay que tener en cuenta que para proteger al sistema, **komlogd no planificará la ejecución un job
-hasta que la ejecución anterior de ese mismo job haya terminado**. Por ejemplo, si tengo un job cuya ejecución se demora 10 minutos y lo planifico para que
-se ejecute cada 5 minutos, komlogd no lo lanzará con la frecuencia configurada.
-
-Carga de jobs desde archivo externo
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-En algunas ocasiones nos puede interesar que komlogd cargue los jobs a ejecutar desde un archivo
-externo, en lugar de añadirlos directamente en el archivo *komlogd.yaml*
-
-Para ello, editamos el archivo *komlogd.yaml* y realizamos lo siguiente:
-
-1. Habilitamos la opción que permite cargar jobs desde un archivo externo::
-
-    - allow_external_jobs: yes
-
-2. Por cada fichero de jobs, añadimos lo siguiente::
-
-    - external_job_file: <path_to_file>
-
-sustituyendo *<path_to_file>* por la ruta del archivo que contiene el listado de *bloques job*
-que queremos ejecutar.
-
-Podemos añadir tantos bloques *external_job_file* al archivo *komlogd.yaml* como queramos.
 
 Configuración de funciones de transferencia
 -------------------------------------------
@@ -214,7 +133,7 @@ Los parametros del *bloque transfers* son los siguientes:
 * **filename**: Ruta del archivo que contiene las *funciones de transferencia*. La ruta puede ser absoluta o relativa al directorio
   de configuración de komlogd.
 
-Al igual que en el caso de los jobs, se pueden añadir tantos *bloques transfers* como se desee.
+Se pueden añadir tantos *bloques transfers* como se desee.
 
 Configuración del nivel de log
 ------------------------------

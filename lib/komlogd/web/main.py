@@ -23,12 +23,6 @@ async def start_komlog_session():
     await KomlogSession.login()
     await KomlogSession.join()
 
-async def stop_komlog_session():
-    await KomlogSession.close()
-
-def send_sample(sample):
-    asyncio.ensure_future(KomlogSession.send_samples(samples=[sample]))
-
 async def start_komlogd_stdin_mode(uri):
     now = pd.Timestamp('now', tz=dateutil.tz.tzlocal())
     data = sys.stdin.read()
@@ -38,5 +32,8 @@ async def start_komlogd_stdin_mode(uri):
     if not result['success']:
         sys.stderr.write('Error sending data to Komlog.\n')
         sys.stderr.write(result['error']+'\n')
+    await KomlogSession.close()
+
+async def stop_komlog_session():
     await KomlogSession.close()
 

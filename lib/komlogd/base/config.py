@@ -34,39 +34,11 @@ class Config():
                 if entryname in entry:
                     self.entries.append(entry)
 
-    def _load_external_entries(self):
-        logging.logger.info('Loading external entries')
-        job_files=[]
-        ext_jobs_enabled=False
-        ext_jobs=self.get_entries(entryname=options.EXT_JOBS)
-        if len(ext_jobs)>0:
-            if len(ext_jobs)==1:
-                ext_jobs_enabled=ext_jobs[0]
-            else:
-                logging.logger.info(options.EXT_JOBS+' option found more than once, ignoring.')
-        if ext_jobs_enabled:
-            logging.logger.info('External jobs enabled, loading them.')
-            entries=self.get_entries(entryname=options.EXT_JOB_FILE)
-            for entry in entries:
-                job_files.append(entry)
-        else:
-            logging.logger.info('External jobs not enabled.')
-        for item in job_files:
-            logging.logger.info('Loading external jobs from file '+item)
-            try:
-                self._load_entries(filename=item, entryname=options.ENTRY_JOB)
-            except Exception:
-                logging.logger.info('Error loading external jobs from file '+item+'. Skipping')
-                ex_info=traceback.format_exc().splitlines()
-                for line in ex_info:
-                    logging.logger.error(line)
-
     def get_entries(self, entryname):
         if self.entries is None:
             logging.logger.info('Loading configuration file entries')
             self.entries=[]
             self._load_entries()
-            self._load_external_entries()
         entries = []
         for entry in self.entries:
             if entryname in entry:

@@ -12,7 +12,6 @@ import functools
 import traceback
 from stat import S_ISFIFO, S_ISREG
 from komlogd.base import config, logging
-from komlogd.scheduler import main as schmain
 from komlogd.transfer_methods import main as tfmain
 from komlogd.web import main as webmain
 
@@ -41,7 +40,6 @@ class Application:
             if self._stdin_mode:
                 webmain.initialize_komlog_session(load_tm=False)
             else:
-                schmain.initialize_scheduler()
                 tfmain.load_transfer_methods_files()
                 webmain.initialize_komlog_session()
         except Exception as e:
@@ -62,7 +60,6 @@ class Application:
         if self._stdin_mode:
             await webmain.start_komlogd_stdin_mode(uri=self.uri)
         else:
-            schmain.start_scheduler()
             await webmain.start_komlog_session()
 
     async def stop(self):
