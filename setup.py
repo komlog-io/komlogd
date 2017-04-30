@@ -2,7 +2,7 @@ import sys
 import unittest
 from setuptools import setup, find_packages
 
-version = '0.4.0'
+version = '0.5.0'
 if not sys.version_info[0] == 3 and not sys.version_info[1] >= 5:
     sys.exit("Sorry, Python 3.5 or greater required.")
 
@@ -21,7 +21,7 @@ setup(
     author_email='hello@komlog.io',
     url='https://github.com/komlog-io/komlogd',
     license='Apache Software License',
-    install_requires=['pyyaml', 'setuptools', 'cryptography', 'aiohttp>=1.0', 'pandas'],
+    install_requires=['pyyaml', 'setuptools', 'cryptography', 'aiohttp>=2.0', 'pandas>=0.18'],
     package_dir={ '': 'lib' },
     packages = find_packages('lib'),
     test_suite = 'setup.get_test_suite',
