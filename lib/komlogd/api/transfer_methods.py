@@ -14,20 +14,20 @@ from functools import wraps
 from komlogd.api import logging, uri, exceptions
 from komlogd.api.model.transfer_methods import static_transfer_methods
 from komlogd.api.protocol.model import validation
+from komlogd.api.protocol.model.schedules import Schedule, OnUpdateSchedule
 from komlogd.api.protocol.model.types import Metric, Sample
 from komlogd.api.protocol.model.transfer_methods import DataRequirements
 
 
 class transfermethod:
 
-    def __init__(self, p_in=None, p_out=None, data_reqs=None, min_exec_delta=None, exec_on_load=False, allow_loops=False):
+    def __init__(self, p_in=None, p_out=None, data_reqs=None, schedule=None, allow_loops=False):
         self.mid = uuid.uuid4()
         self.last_exec = None
         self.p_in = p_in
         self.p_out = p_out
         self.data_reqs = data_reqs
-        self.min_exec_delta = min_exec_delta
-        self.exec_on_load = exec_on_load
+        self.schedule = schedule
         self.allow_loops = allow_loops
 
     @property
@@ -65,15 +65,15 @@ class transfermethod:
             raise exceptions.BadParametersException('"p_out" attribute must be a dict')
 
     @property
-    def min_exec_delta(self):
-        return self._min_exec_delta
+    def schedule(self):
+        return self._schedule
 
-    @min_exec_delta.setter
-    def min_exec_delta(self, value):
-        try:
-            self._min_exec_delta = pd.Timedelta(value) if value is not None else None
-        except ValueError:
-            raise exceptions.BadParametersException('Invalid min_exec_delta value')
+    @schedule.setter
+    def schedule(self, value):
+        if value is None or isinstance(value, Schedule):
+            self._schedule = value
+        else:
+            raise exceptions.BadParametersException('Invalid "schedule" attribute')
 
     @property
     def data_reqs(self):
@@ -95,14 +95,6 @@ class transfermethod:
                 self._data_reqs = value
                 return
         raise exceptions.BadParametersException('Invalid data_reqs parameter')
-
-    @property
-    def exec_on_load(self):
-        return self._exec_on_load
-
-    @exec_on_load.setter
-    def exec_on_load(self, value):
-        self._exec_on_load = bool(value)
 
     @property
     def allow_loops(self):
@@ -186,6 +178,8 @@ class transfermethod:
                 if m:
                     metrics.add(m)
         self._m_in = metrics
+        if self.schedule == None:
+            self.schedule = OnUpdateSchedule(metrics = list(metrics))
         metrics = set()
         for k,r in self._p_out_routes.items():
             obj = self._p_out[k]
@@ -282,9 +276,6 @@ class transfermethod:
         @wraps(f)
         async def decorated(session, ts, metrics):
             now=pd.Timestamp('now',tz='utc')
-            if self.min_exec_delta and self.last_exec and now-self.min_exec_delta<self.last_exec:
-                logging.logger.debug('min_exec_delta condition not satisfied, not executing '+f.__name__)
-                return
             exec_params=self._get_execution_params(session=session, ts=ts, metrics=metrics)
             self.last_exec=pd.Timestamp('now',tz='utc')
             if asyncio.iscoroutinefunction(f):

@@ -5,6 +5,7 @@ import pandas as pd
 from komlogd.api import transfer_methods, exceptions
 from komlogd.api.model.store import MetricsStore
 from komlogd.api.protocol.model.types import Metric, Datasource, Datapoint, Sample
+from komlogd.api.protocol.model.schedules import OnUpdateSchedule
 from komlogd.api.protocol.model.transfer_methods import DataRequirements
 
 class ApiTransferMethodsTest(unittest.TestCase):
@@ -43,12 +44,12 @@ class ApiTransferMethodsTest(unittest.TestCase):
                 tm=transfer_methods.transfermethod(p_out=p_out)
             self.assertEqual(cm.exception.msg, 'Invalid output parameter. "{}" is a reserved parameter'.format(key))
 
-    def test_transfermethod_failure_invalid_min_exec_delta(self):
-        ''' creation of a transfermethod object should fail if min_exec_delta parameter is invalid '''
-        min_exec_delta='once upon a time'
+    def test_transfermethod_failure_invalid_schedule(self):
+        ''' creation of a transfermethod object should fail if shedule parameter is invalid '''
+        schedule='once upon a time'
         with self.assertRaises(exceptions.BadParametersException) as cm:
-            tm=transfer_methods.transfermethod(min_exec_delta=min_exec_delta)
-        self.assertEqual(cm.exception.msg, 'Invalid min_exec_delta value')
+            tm=transfer_methods.transfermethod(schedule=schedule)
+        self.assertEqual(cm.exception.msg, 'Invalid "schedule" attribute')
 
     def test_transfermethod_failure_invalid_data_reqs(self):
         ''' creation of a transfermethod object should fail if data_reqs parameter is invalid '''
@@ -57,58 +58,55 @@ class ApiTransferMethodsTest(unittest.TestCase):
             tm=transfer_methods.transfermethod(data_reqs=data_reqs)
         self.assertEqual(cm.exception.msg, 'Invalid data_reqs parameter')
 
-    def test_transfermethod_success(self):
+    def test_transfermethod_success_no_metrics_in_params(self):
         ''' creation of a transfermethod object should succeed if uri is valid '''
         p_in={'arg1':'valid.uri','arg2':'another.uri'}
         p_out={'arg3':'valid.uri','arg4':'another.uri'}
-        min_exec_delta = '2h'
         data_reqs = DataRequirements(past_delta=pd.Timedelta('6h'))
-        tm=transfer_methods.transfermethod(p_in=p_in, p_out=p_out, min_exec_delta=min_exec_delta, data_reqs=data_reqs, exec_on_load=True, allow_loops=True)
+        tm=transfer_methods.transfermethod(p_in=p_in, p_out=p_out, data_reqs=data_reqs, allow_loops=True)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, pd.Timedelta(min_exec_delta))
+        self.assertEqual(tm.schedule, None)
         self.assertEqual(tm.data_reqs, data_reqs)
         self.assertEqual(tm.p_in, p_in)
         self.assertEqual(tm.p_out, p_out)
-        self.assertEqual(tm.exec_on_load, True)
         self.assertEqual(tm.allow_loops, True)
 
-    def test_transfermethod_success_registering_transfermethod(self):
+    def test_transfermethod_success_registering_transfermethod_no_metrics_in_params(self):
         '''transfermethod object should be able to register the associated method successfully '''
         p_in={'arg1':'valid.uri','arg2':'another.uri'}
         p_out={'arg3':'valid.uri','arg4':'another.uri'}
-        min_exec_delta = '2h'
         data_reqs = DataRequirements(past_delta=pd.Timedelta('6h'))
-        tm=transfer_methods.transfermethod(p_in=p_in, p_out=p_out, min_exec_delta=min_exec_delta, data_reqs=data_reqs, exec_on_load=True, allow_loops=True)
+        tm=transfer_methods.transfermethod(p_in=p_in, p_out=p_out, data_reqs=data_reqs, allow_loops=True)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, pd.Timedelta(min_exec_delta))
+        self.assertEqual(tm.schedule, None)
         self.assertEqual(tm.data_reqs, data_reqs)
         self.assertEqual(tm.p_in, p_in)
         self.assertEqual(tm.p_out, p_out)
-        self.assertEqual(tm.exec_on_load, True)
         self.assertEqual(tm.allow_loops, True)
         def func():
             pass
         f=tm(func)
         self.assertEqual(f,func)
         self.assertEqual(tm._func_params,{})
+        self.assertNotEqual(tm.schedule, None)
+        self.assertTrue(isinstance(tm.schedule, OnUpdateSchedule))
+        self.assertEqual(tm.schedule.metrics, [])
+        self.assertEqual(tm.schedule.exec_on_load, False)
         self.assertIsNotNone(getattr(tm,'f',None))
         self.assertTrue(asyncio.iscoroutinefunction(tm.f))
 
     def test_transfermethod_success_registering_transfermethod_with_input_params(self):
         '''transfermethod object should be able to register the associated method and find input params '''
         p_in={'arg1':Datapoint('valid.datapoint'),'arg2':Datasource('valid.datasource')}
-        min_exec_delta = '2h'
         data_reqs = DataRequirements(past_delta=pd.Timedelta('6h'))
-        tm=transfer_methods.transfermethod(p_in=p_in, min_exec_delta=min_exec_delta, data_reqs=data_reqs, exec_on_load=True, allow_loops=True)
+        tm=transfer_methods.transfermethod(p_in=p_in, data_reqs=data_reqs, allow_loops=True)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, pd.Timedelta(min_exec_delta))
         self.assertEqual(tm.data_reqs, data_reqs)
         self.assertEqual(tm.p_in, p_in)
         self.assertEqual(tm.p_out, {})
-        self.assertEqual(tm.exec_on_load, True)
         self.assertEqual(tm.allow_loops, True)
         def func(arg1, arg2):
             pass
@@ -118,22 +116,50 @@ class ApiTransferMethodsTest(unittest.TestCase):
         self.assertEqual(tm._p_in_routes,{'arg1':[[('s',0)]],'arg2':[[('s',0)]]})
         self.assertEqual(tm._p_out_routes,{})
         self.assertEqual(tm._m_in, {Datapoint('valid.datapoint'),Datasource('valid.datasource')})
+        self.assertNotEqual(tm.schedule, None)
+        self.assertTrue(isinstance(tm.schedule, OnUpdateSchedule))
+        self.assertEqual(sorted(tm.schedule.metrics, key=lambda x:x.uri), sorted(list(p_in.values()),key=lambda x:x.uri))
+        self.assertEqual(tm.schedule.exec_on_load, False)
+        self.assertIsNotNone(getattr(tm,'f',None))
+        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+
+    def test_transfermethod_success_registering_transfermethod_onupdateschedule_different_input_metric(self):
+        '''transfermethod object should be able to register the associated method and find input params '''
+        p_in={'arg1':Datapoint('valid.datapoint'),'arg2':Datasource('valid.datasource')}
+        data_reqs = DataRequirements(past_delta=pd.Timedelta('6h'))
+        schedule=OnUpdateSchedule(metrics=[Datapoint('valid.datapoint2')], exec_on_load=True)
+        tm=transfer_methods.transfermethod(p_in=p_in, data_reqs=data_reqs, schedule=schedule, allow_loops=True)
+        self.assertTrue(isinstance(tm.mid,uuid.UUID))
+        self.assertEqual(tm.last_exec, None)
+        self.assertEqual(tm.data_reqs, data_reqs)
+        self.assertEqual(tm.p_in, p_in)
+        self.assertEqual(tm.p_out, {})
+        self.assertEqual(tm.allow_loops, True)
+        def func(arg1, arg2):
+            pass
+        f=tm(func)
+        self.assertEqual(f,func)
+        self.assertEqual(list(tm._func_params.keys()),['arg1','arg2'])
+        self.assertEqual(tm._p_in_routes,{'arg1':[[('s',0)]],'arg2':[[('s',0)]]})
+        self.assertEqual(tm._p_out_routes,{})
+        self.assertEqual(tm._m_in, {Datapoint('valid.datapoint'),Datasource('valid.datasource')})
+        self.assertNotEqual(tm.schedule, None)
+        self.assertTrue(isinstance(tm.schedule, OnUpdateSchedule))
+        self.assertEqual(tm.schedule.metrics, schedule.metrics)
+        self.assertEqual(tm.schedule.exec_on_load, True)
         self.assertIsNotNone(getattr(tm,'f',None))
         self.assertTrue(asyncio.iscoroutinefunction(tm.f))
 
     def test_transfermethod_success_registering_transfermethod_with_output_params(self):
         '''transfermethod object should be able to register the associated method and find output params '''
         p_out={'arg1':Datapoint('valid.datapoint'),'arg2':Datasource('valid.datasource')}
-        min_exec_delta = '2h'
         data_reqs = DataRequirements(past_delta=pd.Timedelta('6h'))
-        tm=transfer_methods.transfermethod(p_out=p_out, min_exec_delta=min_exec_delta, data_reqs=data_reqs, exec_on_load=True, allow_loops=True)
+        tm=transfer_methods.transfermethod(p_out=p_out, data_reqs=data_reqs, allow_loops=True)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, pd.Timedelta(min_exec_delta))
         self.assertEqual(tm.data_reqs, data_reqs)
         self.assertEqual(tm.p_out, p_out)
         self.assertEqual(tm.p_in, {})
-        self.assertEqual(tm.exec_on_load, True)
         self.assertEqual(tm.allow_loops, True)
         def func(arg1, arg2):
             pass
@@ -143,6 +169,10 @@ class ApiTransferMethodsTest(unittest.TestCase):
         self.assertEqual(tm._p_out_routes,{'arg1':[[('s',0)]],'arg2':[[('s',0)]]})
         self.assertEqual(tm._p_in_routes,{})
         self.assertEqual(tm._m_in, set())
+        self.assertNotEqual(tm.schedule, None)
+        self.assertTrue(isinstance(tm.schedule, OnUpdateSchedule))
+        self.assertEqual(tm.schedule.metrics, [])
+        self.assertEqual(tm.schedule.exec_on_load, False)
         self.assertIsNotNone(getattr(tm,'f',None))
         self.assertTrue(asyncio.iscoroutinefunction(tm.f))
 
@@ -152,11 +182,9 @@ class ApiTransferMethodsTest(unittest.TestCase):
         tm=transfer_methods.transfermethod(p_in=p_in)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, None) 
         self.assertEqual(tm.data_reqs, None)
         self.assertEqual(tm.p_out, {})
         self.assertEqual(tm.p_in, p_in)
-        self.assertEqual(tm.exec_on_load, False)
         self.assertEqual(tm.allow_loops, False)
         def func(arg1, arg2):
             pass
@@ -175,11 +203,9 @@ class ApiTransferMethodsTest(unittest.TestCase):
         tm=transfer_methods.transfermethod(p_in=p_in)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, None) 
         self.assertEqual(tm.data_reqs, None)
         self.assertEqual(tm.p_out, {})
         self.assertEqual(tm.p_in, p_in)
-        self.assertEqual(tm.exec_on_load, False)
         self.assertEqual(tm.allow_loops, False)
         def func(arg1, arg2):
             pass
@@ -203,11 +229,9 @@ class ApiTransferMethodsTest(unittest.TestCase):
         tm=transfer_methods.transfermethod(p_in=p_in)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, None) 
         self.assertEqual(tm.data_reqs, None)
         self.assertEqual(tm.p_out, {})
         self.assertEqual(tm.p_in, p_in)
-        self.assertEqual(tm.exec_on_load, False)
         self.assertEqual(tm.allow_loops, False)
         def func(arg1, arg2):
             pass
@@ -230,11 +254,9 @@ class ApiTransferMethodsTest(unittest.TestCase):
         tm=transfer_methods.transfermethod(p_in=p_in)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, None) 
         self.assertEqual(tm.data_reqs, None)
         self.assertEqual(tm.p_out, {})
         self.assertEqual(tm.p_in, p_in)
-        self.assertEqual(tm.exec_on_load, False)
         self.assertEqual(tm.allow_loops, False)
         def func(arg1, arg2):
             pass
@@ -257,11 +279,9 @@ class ApiTransferMethodsTest(unittest.TestCase):
         tm=transfer_methods.transfermethod(p_out=p_out)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, None) 
         self.assertEqual(tm.data_reqs, None)
         self.assertEqual(tm.p_in, {})
         self.assertEqual(tm.p_out, p_out)
-        self.assertEqual(tm.exec_on_load, False)
         self.assertEqual(tm.allow_loops, False)
         def func(arg1, arg2):
             pass
@@ -286,11 +306,9 @@ class ApiTransferMethodsTest(unittest.TestCase):
         tm=transfer_methods.transfermethod(p_in=p_in, p_out=p_out, allow_loops=True)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, None) 
         self.assertEqual(tm.data_reqs, None)
         self.assertEqual(tm.p_in, p_in)
         self.assertEqual(tm.p_out, p_out)
-        self.assertEqual(tm.exec_on_load, False)
         self.assertEqual(tm.allow_loops, True)
         def func(ds):
             pass
@@ -326,11 +344,9 @@ class ApiTransferMethodsTest(unittest.TestCase):
         tm=transfer_methods.transfermethod(p_in=p_in, p_out=p_out)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, None) 
         self.assertEqual(tm.data_reqs, None)
         self.assertEqual(tm.p_in, p_in)
         self.assertEqual(tm.p_out, p_out)
-        self.assertEqual(tm.exec_on_load, False)
         self.assertEqual(tm.allow_loops, False)
         def func(ds):
             pass
@@ -363,11 +379,9 @@ class ApiTransferMethodsTest(unittest.TestCase):
         tm=transfer_methods.transfermethod(p_in=p_in, p_out=p_out, allow_loops=True)
         self.assertTrue(isinstance(tm.mid,uuid.UUID))
         self.assertEqual(tm.last_exec, None)
-        self.assertEqual(tm.min_exec_delta, None) 
         self.assertEqual(tm.data_reqs, None)
         self.assertEqual(tm.p_in, p_in)
         self.assertEqual(tm.p_out, p_out)
-        self.assertEqual(tm.exec_on_load, False)
         self.assertEqual(tm.allow_loops, True)
         def func(ds):
             pass

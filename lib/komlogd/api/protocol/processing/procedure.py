@@ -1,8 +1,10 @@
 import asyncio
 import json
+import time
 import pandas as pd
 from komlogd.api import logging
 from komlogd.api.protocol.model import messages
+from komlogd.api.protocol.model.schedules import OnUpdateSchedule, CronSchedule
 from komlogd.api.protocol.model.codes import Status
 from komlogd.api.protocol.model.types import Metrics, Actions, Datasource, Datapoint, Metric, Sample
 
@@ -12,8 +14,12 @@ async def initialize_transfer_methods(session):
         await initialize_transfer_method(session, method)
 
 async def initialize_transfer_method(session, method):
-    initialized={metric.uri:False for metric in method.m_in}
-    for metric in method.m_in:
+    metrics = method.m_in
+    if isinstance(method.schedule, OnUpdateSchedule):
+        for m in method.schedule.metrics:
+            metrics.add(m)
+    initialized={metric.uri:False for metric in metrics}
+    for metric in metrics:
         reqs = method.data_reqs[metric.uri] if isinstance(method.data_reqs, dict) and metric.uri in method.data_reqs else method.data_reqs
         if reqs:
             session._metrics_store.add_metric_data_reqs(metric=metric, reqs=reqs)
@@ -60,11 +66,16 @@ async def initialize_transfer_method(session, method):
         else:
             logging.logger.debug('Error hooking to uri {}. {}'.format(str(metric.uri),str(rsp.__dict__)))
     #by now, always initialize no matter if all metrics initialized ok. will add more parameters for fine grained initialization options
-    if method.exec_on_load:
+    if method.schedule.exec_on_load:
         now = pd.Timestamp('now', tz='utc')
         asyncio.ensure_future(method.f(ts=now, metrics=[], session=session))
-    session._transfer_methods.enable_transfer_method(method.mid)
-    logging.logger.debug('Transfer method initialized: {}'.format(str(method.f.__name__)))
+    if isinstance(method.schedule, CronSchedule):
+        logging.logger.debug('Programming first transfer method exec: '+method.f.__name__)
+        asyncio.ensure_future(session._periodic_transfer_method_call(mid=method.mid))
+    if session._transfer_methods.enable_transfer_method(method.mid):
+        logging.logger.debug('Transfer method initialized: {}'.format(str(method.f.__name__)))
+    else:
+        logging.logger.debug('Error initializing transfer method: {}'.format(str(method.f.__name__)))
 
 async def send_samples(session, samples):
     if not isinstance(samples, list):

@@ -2,6 +2,7 @@ import asyncio
 import aiohttp
 import json
 import traceback
+import time
 import pandas as pd
 from komlogd.api import logging, exceptions, crypto
 from komlogd.api.protocol.model import messages, validation
@@ -184,6 +185,18 @@ class KomlogSession:
             self._deferred.remove(msg)
             self._send_message(msg)
         asyncio.ensure_future(prproc.initialize_transfer_methods(self))
+
+    async def _periodic_transfer_method_call(self, mid):
+        t = time.time()
+        await asyncio.sleep(60-t%60)
+        localtime = time.localtime(t+(60-t%60))
+        tm_info = self._transfer_methods.get_transfer_method_info(mid)
+        if (tm_info and
+            tm_info['enabled']):
+            if tm_info['tm'].schedule.meets(t=localtime):
+                ts=pd.Timestamp(ts_input=t+(60-t%60), unit='s', tz='utc')
+                await tm_info['tm'].f(session=self, ts=ts, metrics=[])
+            asyncio.ensure_future(self._periodic_transfer_method_call(mid))
 
     async def _process_received_message(self, msg):
         try:
