@@ -84,7 +84,7 @@ class KomlogSession:
             await self._ws_connect()
             self._q_msg_workers.start()
             if self._load_tm:
-                self._load_static_transfer_methods()
+                self._load_anonymous_transfer_methods()
             logging.logger.info('Entering loop')
             self._loop_future = asyncio.ensure_future(self._session_loop(), loop=self._loop)
             self._session_future = asyncio.futures.Future(loop=self._loop)
@@ -170,9 +170,9 @@ class KomlogSession:
                     self._ws_disconnected()
                     await asyncio.sleep(15)
 
-    def _load_static_transfer_methods(self):
+    def _load_anonymous_transfer_methods(self):
         logging.logger.debug('Loading transfer methods')
-        for item in transfer_methods.static_transfer_methods.get_transfer_methods(enabled=False):
+        for item in transfer_methods.anon_transfer_methods.get_transfer_methods(enabled=False):
             if not self._transfer_methods.add_transfer_method(item, enabled=False):
                 logging.logger.error('Error loading transfer method '+item.f.__name__)
 
@@ -195,7 +195,7 @@ class KomlogSession:
             tm_info['enabled']):
             if tm_info['tm'].schedule.meets(t=localtime):
                 ts=pd.Timestamp(ts_input=t+(60-t%60), unit='s', tz='utc')
-                await tm_info['tm'].f(session=self, ts=ts, metrics=[])
+                await prproc.exec_transfer_method(session=self, mid=tm_info['tm'].mid, ts=ts, metrics=[])
             asyncio.ensure_future(self._periodic_transfer_method_call(mid))
 
     async def _process_received_message(self, msg):
@@ -246,8 +246,8 @@ class KomlogSession:
         return future
 
     async def send_samples(self, samples):
-        logging.logger.debug('enviando samples')
+        logging.logger.debug('sending samples')
         result = await prproc.send_samples(self, samples)
-        logging.logger.debug('resultado: {}'.format(str(result)))
+        logging.logger.debug('result: {}'.format(str(result)))
         return result
 

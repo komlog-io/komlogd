@@ -12,7 +12,7 @@ from komlogd.api.protocol.model.schedules import OnUpdateSchedule, CronSchedule
 
 class TransferMethodsIndex:
 
-    def __init__(self, owner=None):
+    def __init__(self, owner):
         self.owner = owner
         self._enabled_methods={}
         self._disabled_methods = {}
@@ -36,29 +36,25 @@ class TransferMethodsIndex:
     def add_transfer_method(self, transfer_method, enabled=False):
         if self.get_transfer_method_info(transfer_method.mid):
             return False
-        for m in transfer_method.m_in:
-            if self.owner:
+        if self.owner:
+            transfer_method._initialize(owner = self.owner)
+            for m in transfer_method.m_in:
                 guri = uri.get_global_uri(m, owner=self.owner)
-            else:
-                guri = m.uri
-            if guri not in self.metrics:
-                self.metrics[guri]=m
-            try:
-                self.uri_transfer_methods[guri].add(transfer_method.mid)
-            except KeyError:
-                self.uri_transfer_methods[guri]={transfer_method.mid}
-        if isinstance(transfer_method.schedule, OnUpdateSchedule):
-            for m in transfer_method.schedule.metrics:
-                if self.owner:
-                    guri = uri.get_global_uri(m, owner=self.owner)
-                else:
-                    guri = m.uri
-                if guri not in self.on_update_metrics:
-                    self.on_update_metrics[guri]=m
+                if guri not in self.metrics:
+                    self.metrics[guri]=m
                 try:
-                    self.on_update_uri_transfer_methods[guri].add(transfer_method.mid)
+                    self.uri_transfer_methods[guri].add(transfer_method.mid)
                 except KeyError:
-                    self.on_update_uri_transfer_methods[guri]={transfer_method.mid}
+                    self.uri_transfer_methods[guri]={transfer_method.mid}
+            if isinstance(transfer_method.schedule, OnUpdateSchedule):
+                for m in transfer_method.schedule.metrics:
+                    guri = uri.get_global_uri(m, owner=self.owner)
+                    if guri not in self.on_update_metrics:
+                        self.on_update_metrics[guri]=m
+                    try:
+                        self.on_update_uri_transfer_methods[guri].add(transfer_method.mid)
+                    except KeyError:
+                        self.on_update_uri_transfer_methods[guri]={transfer_method.mid}
         if enabled:
             self._enabled_methods[transfer_method.mid]=transfer_method
         else:
@@ -157,4 +153,4 @@ class TransferMethodsIndex:
         return transfer_methods
 
 
-static_transfer_methods = TransferMethodsIndex()
+anon_transfer_methods = TransferMethodsIndex(owner=None)

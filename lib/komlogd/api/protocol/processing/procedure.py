@@ -68,7 +68,7 @@ async def initialize_transfer_method(session, method):
     #by now, always initialize no matter if all metrics initialized ok. will add more parameters for fine grained initialization options
     if method.schedule.exec_on_load:
         now = pd.Timestamp('now', tz='utc')
-        asyncio.ensure_future(method.f(ts=now, metrics=[], session=session))
+        asyncio.ensure_future(exec_transfer_method(mid=method.mid, ts=now, metrics=[], session=session))
     if isinstance(method.schedule, CronSchedule):
         logging.logger.debug('Programming first transfer method exec: '+method.f.__name__)
         asyncio.ensure_future(session._periodic_transfer_method_call(mid=method.mid))
@@ -116,4 +116,26 @@ async def send_samples(session, samples):
             result['success']=False
             result['msg']=' '.join(('code:',rsp.error,rsp.reason))
     return result
+
+async def exec_transfer_method(session, mid, ts, metrics):
+    tm_info = session._transfer_methods.get_transfer_method_info(mid=mid)
+    if tm_info:
+        data = {}
+        data_reqs = tm_info['tm'].get_data_requirements()
+        for m,dr in data_reqs.items():
+            its = None
+            count = None
+            if dr and dr.past_delta:
+                its = ts - dr.past_delta
+            if dr and not its and dr.past_count:
+                count = dr.past_count
+            data[m]=session._metrics_store.get_serie(metric=m, ets=ts, its=its, count=count)
+        result = await tm_info['tm'].f(ts=ts, metrics=metrics, data=data)
+        if result and 'samples' in result:
+            samples = []
+            for sample in result['samples']:
+                if not session._metrics_store.isin(sample.metric, ts=sample.ts, content=sample.data):
+                    samples.append(sample)
+            await session.send_samples(samples)
+
 

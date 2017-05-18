@@ -1,6 +1,7 @@
 import asyncio
 import json
 from komlogd.api import logging
+from komlogd.api.protocol.processing import procedure as prproc
 from komlogd.api.protocol.model.types import Metrics, Actions, Datasource, Datapoint, Metric
 
 
@@ -17,7 +18,7 @@ def process_message_send_multi_data(msg, session, **kwargs):
     transfer_methods = session._transfer_methods.get_on_update_transfer_methods(metrics=metrics)
     for item in transfer_methods:
         logging.logger.debug('Requesting execution of method: '+item.f.__name__)
-        asyncio.ensure_future(item.f(ts=msg.ts, metrics=metrics, session=session))
+        asyncio.ensure_future(prproc.exec_transfer_method(mid=item.mid,ts=msg.ts,metrics=metrics,session=session))
 
 def process_message_send_data_interval(msg, session, **kwargs):
     logging.logger.debug('Received data for uri: '+msg.metric.uri)

@@ -12,7 +12,7 @@ import uuid
 import pandas as pd
 from functools import wraps
 from komlogd.api import logging, uri, exceptions
-from komlogd.api.model.transfer_methods import static_transfer_methods
+from komlogd.api.model.transfer_methods import anon_transfer_methods
 from komlogd.api.protocol.model import validation
 from komlogd.api.protocol.model.schedules import Schedule, OnUpdateSchedule
 from komlogd.api.protocol.model.types import Metric, Sample
@@ -107,6 +107,10 @@ class transfermethod:
     @property
     def m_in(self):
         return self._m_in
+
+    def _initialize(self, owner):
+        self.owner = owner
+        self._register_metrics()
 
     def _inspect_input_params(self):
         self._p_in_routes = {}
@@ -208,30 +212,26 @@ class transfermethod:
         else:
             return m
 
-    def _get_execution_params(self, session, ts, metrics):
+    def get_data_requirements(self):
+        reqs={}
+        for m in self._m_in:
+            reqs[m] = self.data_reqs[m.uri] if isinstance(self.data_reqs,dict) and m.uri in self.data_reqs else self.data_reqs
+        return reqs
+
+    def _get_execution_params(self, ts, metrics, data):
         exec_params={}
-        arg_metrics_uris=[uri.get_global_uri(metric,owner=session._username) for metric in metrics]
+        arg_metrics_uris=[uri.get_global_uri(metric,owner=self.owner) for metric in metrics]
         updated = []
         others = []
-        data={}
-        for m in self._m_in:
-            its = None
-            count = None
-            reqs = self.data_reqs[m.uri] if isinstance(self.data_reqs,dict) and m.uri in self.data_reqs else self.data_reqs
-            if reqs and reqs.past_delta:
-                its = ts - reqs.past_delta
-            if reqs and not its and reqs.past_count:
-                count = reqs.past_count
-            data[m]=session._metrics_store.get_serie(metric=m, ets=ts, its=its, count=count)
         for arg in self._func_params:
             if arg == 'ts':
                 exec_params[arg]=ts
             elif arg == 'updated':
-                exec_params[arg]=[m for m in self._m_in if uri.get_global_uri(m,owner=session._username) in arg_metrics_uris]
+                exec_params[arg]=[m for m in self._m_in if uri.get_global_uri(m,owner=self.owner) in arg_metrics_uris]
                 for m in exec_params[arg]:
                     m.data = data[m]
             elif arg == 'others':
-                exec_params[arg]=[m for m in self._m_in if uri.get_global_uri(m,owner=session._username) not in arg_metrics_uris]
+                exec_params[arg]=[m for m in self._m_in if uri.get_global_uri(m,owner=self.owner) not in arg_metrics_uris]
                 for m in exec_params[arg]:
                     m.data = data[m]
             elif arg in self._p_in:
@@ -254,7 +254,7 @@ class transfermethod:
                 exec_params[arg]=obj
         return exec_params
 
-    async def _process_exec_result(self, session, params):
+    async def _process_exec_result(self, params):
         samples = []
         for k,obj in params.items():
             if k in self._p_out:
@@ -268,26 +268,26 @@ class transfermethod:
                         m = self._get_metric_by_route(obj=obj, route=route)
                         if m and (self.allow_loops or not m in self._m_in):
                             for row in m.data.items():
-                                if not session._metrics_store.isin(metric=m, ts=row[0], content=row[1]):
-                                    samples.append(Sample(metric=m, ts=row[0], data=row[1]))
-        await session.send_samples(samples)
+                                samples.append(Sample(metric=m, ts=row[0], data=row[1]))
+        if len(samples)>0:
+            return {'samples':samples}
 
     def __call__(self, f):
         @wraps(f)
-        async def decorated(session, ts, metrics):
+        async def decorated(ts, metrics, data):
             now=pd.Timestamp('now',tz='utc')
-            exec_params=self._get_execution_params(session=session, ts=ts, metrics=metrics)
+            exec_params=self._get_execution_params(ts=ts, metrics=metrics, data=data)
             self.last_exec=pd.Timestamp('now',tz='utc')
             if asyncio.iscoroutinefunction(f):
-                result = await f(**exec_params)
+                await f(**exec_params)
             else:
-                result = f(**exec_params)
-            await self._process_exec_result(session, exec_params)
+                f(**exec_params)
+            result = await self._process_exec_result(params=exec_params)
+            return result
         self.f = decorated
         self._func_params = inspect.signature(f).parameters
         self._inspect_input_params()
         self._inspect_output_params()
-        self._register_metrics()
-        static_transfer_methods.add_transfer_method(transfer_method=self, enabled=False)
+        anon_transfer_methods.add_transfer_method(transfer_method=self, enabled=False)
         return f
 
