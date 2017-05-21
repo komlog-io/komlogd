@@ -2,7 +2,7 @@ import sys
 import unittest
 from setuptools import setup, find_packages
 
-version = '0.5.0'
+version = '0.6.0'
 if not sys.version_info[0] == 3 and not sys.version_info[1] >= 5:
     sys.exit("Sorry, Python 3.5 or greater required.")
 
