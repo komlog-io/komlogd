@@ -1,4 +1,5 @@
 import os
+import traceback
 from base64 import b64encode, b64decode
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
@@ -6,7 +7,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from komlogd.api import exceptions
+from komlogd.api import exceptions, logging
 
 def load_private_key(privkey_file):
     ''' 
@@ -72,6 +73,9 @@ def serialize_public_key(key):
         )
         return b64encode(pem).decode()
     except Exception:
+        ex_info=traceback.format_exc().splitlines()
+        for line in ex_info:
+            logging.logger.error(line)
         return None
 
 def serialize_private_key(key):
@@ -86,6 +90,9 @@ def serialize_private_key(key):
         )
         return b64encode(pem).decode()
     except Exception:
+        ex_info=traceback.format_exc().splitlines()
+        for line in ex_info:
+            logging.logger.error(line)
         return None
 
 def decrypt(privkey, ciphertext):
@@ -100,6 +107,9 @@ def decrypt(privkey, ciphertext):
         )
         return plaintext
     except Exception:
+        ex_info=traceback.format_exc().splitlines()
+        for line in ex_info:
+            logging.logger.error(line)
         return None
 
 def encrypt(pubkey, plaintext):
@@ -113,6 +123,9 @@ def encrypt(pubkey, plaintext):
         )
         return ciphertext
     except Exception:
+        ex_info=traceback.format_exc().splitlines()
+        for line in ex_info:
+            logging.logger.error(line)
         return None
 
 def sign_message(privkey, message):
@@ -120,23 +133,29 @@ def sign_message(privkey, message):
         plaintext = b64decode(message.encode('utf-8'))
         signer = privkey.signer(
             padding.PSS(
-                mgf=padding.MGF1(hashes.Whirlpool()),
+                mgf=padding.MGF1(hashes.SHA256()),
                 salt_length=padding.PSS.MAX_LENGTH
             ),
-            hashes.Whirlpool()
+            hashes.SHA256()
         )
         signer.update(plaintext)
         return b64encode(signer.finalize()).decode('utf-8')
     except Exception:
+        ex_info=traceback.format_exc().splitlines()
+        for line in ex_info:
+            logging.logger.error(line)
         return None
 
 def get_hash(message):
     try:
-        digest = hashes.Hash(hashes.Whirlpool(), backend=default_backend())
+        digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
         for i in range(0,30):
             digest.update(message)
         return digest.finalize()
     except Exception:
+        ex_info=traceback.format_exc().splitlines()
+        for line in ex_info:
+            logging.logger.error(line)
         return None
 
 def process_challenge(privkey, challenge):
@@ -146,6 +165,9 @@ def process_challenge(privkey, challenge):
         hashed = get_hash(plaintext)
         return b64encode(hashed).decode('utf-8')
     except Exception:
+        ex_info=traceback.format_exc().splitlines()
+        for line in ex_info:
+            logging.logger.error(line)
         return None
 
 def generate_rsa_key(key_size=4096):
@@ -179,6 +201,9 @@ def store_keys(privkey, privkey_file, pubkey_file):
             pubkey_out.write(pubkey_serial)
             pubkey_out.close()
     except Exception:
+        ex_info=traceback.format_exc().splitlines()
+        for line in ex_info:
+            logging.logger.error(line)
         if priv_stored:
             os.remove(privkey_file)
         return False
