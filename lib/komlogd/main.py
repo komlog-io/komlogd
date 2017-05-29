@@ -71,9 +71,8 @@ if sys.platform == 'win32':
     asyncio.set_event_loop(loop)
 else:
     loop = asyncio.get_event_loop()
-
-for signame in ('SIGINT', 'SIGTERM'):
-    loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(_signal_handler(signame)))
+    for signame in ('SIGINT', 'SIGTERM'):
+        loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(_signal_handler(signame)))
 
 def start_application(config_file=None, uri=None):
     global app
