@@ -70,6 +70,25 @@ class Datapoint(Metric):
     def __init__(self, uri):
         super().__init__(uri=uri)
 
+class Anomaly(Datapoint):
+
+    def __init__(self, metric):
+        super().__init__(uri='.'.join((metric.uri,'_k.anomaly')))
+
+    def __deepcopy__(self, memo):
+        uri = self.uri.split('._k.anomaly')[0]
+        return type(self)(Metric(deepcopy(uri, memo)))
+
+class Filter(Datapoint):
+
+    def __init__(self, metric, key, value):
+        super().__init__(uri='.'.join((metric.uri,'_k.filters',key,value)))
+
+    def __deepcopy__(self, memo):
+        uri,rest = self.uri.split('._k.filters.')[0:2]
+        key,value = rest.split('.')[0:2]
+        return type(self)(metric=Metric(deepcopy(uri, memo)),key=key, value=value)
+
 class Sample:
     def __init__(self, metric, data, ts):
         self.metric = metric
