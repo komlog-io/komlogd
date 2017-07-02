@@ -79,13 +79,13 @@ class Anomaly(Datapoint):
         uri = self.uri.split('._anomaly')[0]
         return type(self)(Metric(deepcopy(uri, memo)))
 
-class Filter(Datapoint):
+class Tag(Datapoint):
 
     def __init__(self, metric, key, value):
-        super().__init__(uri='.'.join((metric.uri,'_filters',key,value)))
+        super().__init__(uri='.'.join((metric.uri,'_tags',key,value)))
 
     def __deepcopy__(self, memo):
-        uri,rest = self.uri.split('._filters.')[0:2]
+        uri,rest = self.uri.split('._tags.')[0:2]
         key,value = rest.split('.')[0:2]
         return type(self)(metric=Metric(deepcopy(uri, memo)),key=key, value=value)
 
