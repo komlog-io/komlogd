@@ -4,23 +4,25 @@ import json
 import traceback
 import time
 import pandas as pd
+import uuid
 from komlogd.api import logging, exceptions, crypto
 from komlogd.api.protocol.model import messages, validation
 from komlogd.api.protocol.processing import message as prmsg
 from komlogd.api.protocol.processing import procedure as prproc
 from komlogd.api.model import store, transfer_methods, queues
+from komlogd.api.model.session import sessionIndex
 
 KOMLOG_LOGIN_URL = 'https://www.komlog.io/login'
 KOMLOG_WS_URL = 'https://agents.komlog.io/'
 
 
 class KomlogSession:
-    def __init__(self, username, privkey, loop=None, load_tm=True):
+    def __init__(self, username, privkey, loop=None):
         loop = loop or asyncio.get_event_loop()
+        self.sid = uuid.uuid4()
         self._loop = loop
         self.username = username
         self.privkey = privkey
-        self._load_tm = load_tm
         self._metrics_store = store.MetricsStore(owner=self.username)
         self._transfer_methods = transfer_methods.TransferMethodsIndex(owner=self.username)
         self._session = None
@@ -30,6 +32,7 @@ class KomlogSession:
         self._deferred = []
         self._waiting_response = {}
         self._q_msg_workers = queues.AsyncQueue(num_workers=5, on_msg=self._process_received_message, name='Message Workers', loop=self._loop)
+        sessionIndex.register_session(self)
 
     @property
     def username(self):
@@ -75,6 +78,7 @@ class KomlogSession:
         if self._loop_future:
             await self._loop_future
             self._session_future.set_result(True)
+        sessionIndex.unregister_session(self.sid)
 
     async def login(self):
         if self._session_future is None:
@@ -83,8 +87,6 @@ class KomlogSession:
             logging.logger.info('Initializing websocket connection')
             await self._ws_connect()
             self._q_msg_workers.start()
-            if self._load_tm:
-                self._load_anonymous_transfer_methods()
             logging.logger.info('Entering loop')
             self._loop_future = asyncio.ensure_future(self._session_loop(), loop=self._loop)
             self._session_future = asyncio.futures.Future(loop=self._loop)
@@ -170,11 +172,12 @@ class KomlogSession:
                     self._ws_disconnected()
                     await asyncio.sleep(15)
 
-    def _load_anonymous_transfer_methods(self):
-        logging.logger.debug('Loading transfer methods')
-        for item in transfer_methods.anon_transfer_methods.get_transfer_methods(enabled=False):
-            if not self._transfer_methods.add_transfer_method(item, enabled=False):
-                logging.logger.error('Error loading transfer method '+item.f.__name__)
+    def register_transfer_method(self, tm):
+        if self._transfer_methods.add_transfer_method(tm, enabled=False):
+            if self._ws:
+                asyncio.ensure_future(prproc.initialize_transfer_method(self, tm))
+        else:
+            logging.logger.error('Error loading transfer method '+item.f.__name__)
 
     def _ws_disconnected(self):
         self._transfer_methods.disable_all()

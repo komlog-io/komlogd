@@ -12,7 +12,7 @@ import uuid
 import pandas as pd
 from functools import wraps
 from komlogd.api import logging, uri, exceptions
-from komlogd.api.model.transfer_methods import anon_transfer_methods
+from komlogd.api.model.session import sessionIndex
 from komlogd.api.protocol.model import validation
 from komlogd.api.protocol.model.schedules import Schedule, OnUpdateSchedule
 from komlogd.api.protocol.model.types import Metric, Sample
@@ -284,10 +284,13 @@ class transfermethod:
                 f(**exec_params)
             result = await self._process_exec_result(params=exec_params)
             return result
+        session = sessionIndex.get_session()
+        if not session:
+            raise Exception('No session found')
         self.f = decorated
         self._func_params = inspect.signature(f).parameters
         self._inspect_input_params()
         self._inspect_output_params()
-        anon_transfer_methods.add_transfer_method(transfer_method=self, enabled=False)
+        session.register_transfer_method(tm=self)
         return f
 

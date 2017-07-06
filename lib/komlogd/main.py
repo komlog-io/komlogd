@@ -37,11 +37,9 @@ class Application:
                     raise RuntimeError('uri parameter found, but no input detected')
                 else:
                     raise RuntimeError('stdin data detected, but no uri parameter found')
-            if self._stdin_mode:
-                webmain.initialize_komlog_session(load_tm=False)
-            else:
+            webmain.initialize_komlog_session()
+            if not self._stdin_mode:
                 tfmain.load_transfer_methods_files()
-                webmain.initialize_komlog_session()
         except Exception as e:
             sys.stderr.write('Error initializing komlogd.\n')
             if logging.logger is not None and len(logging.logger.handlers)>0:

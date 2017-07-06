@@ -152,5 +152,3 @@ class TransferMethodsIndex:
                 transfer_methods.append(tm)
         return transfer_methods
 
-
-anon_transfer_methods = TransferMethodsIndex(owner=None)
