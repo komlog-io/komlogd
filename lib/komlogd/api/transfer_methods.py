@@ -10,6 +10,7 @@ import copy
 import inspect
 import uuid
 import pandas as pd
+import weakref
 from functools import wraps
 from komlogd.api import logging, uri, exceptions
 from komlogd.api.model.session import sessionIndex
@@ -21,14 +22,16 @@ from komlogd.api.protocol.model.transfer_methods import DataRequirements
 
 class transfermethod:
 
-    def __init__(self, p_in=None, p_out=None, data_reqs=None, schedule=None, allow_loops=False):
+    def __init__(self, f=None, p_in=None, p_out=None, data_reqs=None, schedule=None, allow_loops=False, session=None):
         self.mid = uuid.uuid4()
-        self.last_exec = None
+        self._f = f
         self.p_in = p_in
         self.p_out = p_out
         self.data_reqs = data_reqs
         self.schedule = schedule
         self.allow_loops = allow_loops
+        self._session = session
+        self.last_exec = None
 
     @property
     def p_in(self):
@@ -272,25 +275,46 @@ class transfermethod:
         if len(samples)>0:
             return {'samples':samples}
 
-    def __call__(self, f):
+    def _decorate_method(self, f):
         @wraps(f)
         async def decorated(ts, metrics, data):
             now=pd.Timestamp('now',tz='utc')
             exec_params=self._get_execution_params(ts=ts, metrics=metrics, data=data)
             self.last_exec=pd.Timestamp('now',tz='utc')
+            logging.logger.debug('tm is going to run '+self.mid.hex)
             if asyncio.iscoroutinefunction(f):
+                logging.logger.debug('tm is c '+self.mid.hex)
                 await f(**exec_params)
             else:
+                logging.logger.debug('tm is m '+self.mid.hex)
                 f(**exec_params)
             result = await self._process_exec_result(params=exec_params)
             return result
-        session = sessionIndex.get_session()
-        if not session:
-            raise Exception('No session found')
+        if self._session is None:
+            self._session = sessionIndex.get_session()
+            if self._session is None:
+                raise Exception('No session found')
         self.f = decorated
         self._func_params = inspect.signature(f).parameters
         self._inspect_input_params()
         self._inspect_output_params()
-        session.register_transfer_method(tm=self)
+
+    def __call__(self, f):
+        self._decorate_method(f)
+        self._session.register_transfer_method(tm=self)
         return f
+
+    def bind(self):
+        if self._f is None:
+            raise Exception('No function associated to transfermethod object')
+        self._decorate_method(self._f)
+        self._session.register_transfer_method(tm=weakref.proxy(self))
+
+    def unbind(self):
+        if self._session:
+            self._session.delete_transfer_method(self.mid)
+
+    def __del__(self):
+        logging.logger.debug('tm del '+self.mid.hex)
+        self.unbind()
 

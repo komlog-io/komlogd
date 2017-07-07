@@ -177,7 +177,10 @@ class KomlogSession:
             if self._ws:
                 asyncio.ensure_future(prproc.initialize_transfer_method(self, tm))
         else:
-            logging.logger.error('Error loading transfer method '+item.f.__name__)
+            logging.logger.error('Error loading transfer method '+tm.f.__name__)
+
+    def delete_transfer_method(self, mid):
+        self._transfer_methods.delete_transfer_method(mid)
 
     def _ws_disconnected(self):
         self._transfer_methods.disable_all()
@@ -190,6 +193,7 @@ class KomlogSession:
         asyncio.ensure_future(prproc.initialize_transfer_methods(self))
 
     async def _periodic_transfer_method_call(self, mid):
+        logging.logger.debug('periodic_transfer_method_call '+mid.hex)
         t = time.time()
         await asyncio.sleep(60-t%60)
         localtime = time.localtime(t+(60-t%60))
