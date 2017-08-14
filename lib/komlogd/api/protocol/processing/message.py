@@ -19,11 +19,10 @@ def process_message_send_multi_data(msg, session, **kwargs):
     tmIndex.metrics_updated(t=msg.t, metrics=metrics)
 
 def process_message_send_data_interval(msg, session, **kwargs):
-    #TODO: msg should contain uri instead of metric object.
-    if isinstance(msg.metric, Datapoint):
-        metric = Datapoint(uri=msg.metric.uri, session =session)
-    elif isinstance(msg.metric, Datasource):
-        metric = Datasource(uri=msg.metric.uri, session =session)
+    if msg.m_type == Metrics.DATAPOINT:
+        metric = Datapoint(uri=msg.uri, session=session)
+    else:
+        metric = Datasource(uri=msg.uri, session=session)
     for row in msg.data[::-1]:
         session.store.insert(metric, row[0], row[1])
 

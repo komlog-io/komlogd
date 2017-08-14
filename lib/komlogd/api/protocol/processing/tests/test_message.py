@@ -55,9 +55,9 @@ class ApiProtocolProcessingMessageTest(unittest.TestCase):
             ]
             for uri in uris:
                 if uri['type']==Metrics.DATASOURCE.value:
-                    smp = Sample(Datasource(uri['uri']),t,uri['content'])
+                    smp = Sample(Datasource(uri['uri'],session=session),t,uri['content'])
                 else:
-                    smp = Sample(Datapoint(uri['uri']),t,uri['content'])
+                    smp = Sample(Datapoint(uri['uri'],session=session),t,uri['content'])
                 self.assertTrue(session.store.is_in(smp.metric, smp.t, smp.value))
             self.assertEqual(tmIndex.metrics_updated.call_args[1]['t'],t)
             self.assertEqual(tmIndex.metrics_updated.call_args[1]['metrics'],metrics)
@@ -101,9 +101,9 @@ class ApiProtocolProcessingMessageTest(unittest.TestCase):
             ]
             for uri in uris:
                 if uri['type']==Metrics.DATASOURCE.value:
-                    smp = Sample(Datasource(uri['uri']),t,uri['content'])
+                    smp = Sample(Datasource(uri['uri'],session=session),t,uri['content'])
                 else:
-                    smp = Sample(Datapoint(uri['uri']),t,uri['content'])
+                    smp = Sample(Datapoint(uri['uri'],session=session),t,uri['content'])
                 self.assertTrue(session.store.is_in(smp.metric, smp.t, smp.value))
             self.assertEqual(tmIndex.metrics_updated.call_args[1]['t'],t)
             self.assertEqual(tmIndex.metrics_updated.call_args[1]['metrics'],metrics)
@@ -147,16 +147,17 @@ class ApiProtocolProcessingMessageTest(unittest.TestCase):
         ''' process_message_send_data_interval should store contents in session store '''
         username = 'username'
         privkey=crypto.generate_rsa_key()
-        metric = Datapoint('my_datapoint')
+        uri = 'my_datapoint'
+        m_type = Metrics.DATAPOINT
         start = TimeUUID(1)
         end = TimeUUID(3000)
         data_json = json.dumps([(TimeUUID(i).hex,i) for i in range(1,100)])
         data = json.loads(data_json)
         session = KomlogSession(username=username, privkey=privkey)
-        msg = messages.SendDataInterval(metric, start, end, data)
+        msg = messages.SendDataInterval(uri, m_type, start, end, data)
         self.assertIsNone(prmsg.process_message_send_data_interval(msg, session))
         for d in data:
-            smp = Sample(metric,TimeUUID(string=d[0]),d[1])
+            smp = Sample(Datapoint(uri,session),TimeUUID(string=d[0]),d[1])
             self.assertTrue(session.store.is_in(smp.metric, smp.t, smp.value))
         sessionIndex.unregister_session(session.sid)
 
@@ -165,16 +166,17 @@ class ApiProtocolProcessingMessageTest(unittest.TestCase):
         ''' process_message_send_data_interval should store contents in session store '''
         username = 'username'
         privkey=crypto.generate_rsa_key()
-        metric = Datasource('my_datasource')
+        uri = 'my_datasource'
+        m_type = Metrics.DATASOURCE
         start = TimeUUID(1)
         end = TimeUUID(3000)
         data_json = json.dumps([(TimeUUID(i).hex,'sample '+str(i)) for i in range(1,100)])
         data = json.loads(data_json)
         session = KomlogSession(username=username, privkey=privkey)
-        msg = messages.SendDataInterval(metric, start, end, data)
+        msg = messages.SendDataInterval(uri, m_type, start, end, data)
         self.assertIsNone(prmsg.process_message_send_data_interval(msg, session))
         for d in data:
-            smp = Sample(metric,TimeUUID(string=d[0]),d[1])
+            smp = Sample(Datasource(uri,session),TimeUUID(string=d[0]),d[1])
             self.assertTrue(session.store.is_in(smp.metric, smp.t, smp.value))
         sessionIndex.unregister_session(session.sid)
 

@@ -868,60 +868,78 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         }
         self.assertEqual(d,expected)
 
-    def test_SendDataInterval_failure_invalid_metric(self):
-        ''' creating a new RequestData instance should fail if metric is not valid.
+    def test_SendDataInterval_failure_invalid_uri(self):
+        ''' creating a new RequestData instance should fail if uri is not valid.
             Metric should be of type Datasource or Datapoint. '''
-        metric=uuid.uuid4()
+        uri=uuid.uuid4()
+        m_type = Metrics.DATASOURCE
         start = TimeUUID()
         end = TimeUUID()
         data = []
         with self.assertRaises(TypeError) as cm:
-            messages.SendDataInterval(metric=metric, start=start, end=end, data=data)
-        self.assertEqual(str(cm.exception), 'Invalid metric type')
+            messages.SendDataInterval(uri=uri, m_type=m_type, start=start, end=end, data=data)
+        self.assertEqual(str(cm.exception), 'value is not a string: '+str(uri))
+
+    def test_SendDataInterval_failure_invalid_m_type(self):
+        ''' creating a new RequestData instance should fail if m_type is not valid.
+            Metric should be of type Datasource or Datapoint. '''
+        uri='uri'
+        m_type = 'something'
+        start = TimeUUID()
+        end = TimeUUID()
+        data = []
+        with self.assertRaises(TypeError) as cm:
+            messages.SendDataInterval(uri=uri, m_type=m_type, start=start, end=end, data=data)
+        self.assertEqual(str(cm.exception), 'Invalid m_type')
 
     def test_SendDataInterval_failure_invalid_start(self):
         ''' creating a new RequestData instance should fail if start is not valid. '''
-        metric=Datasource(uri='valid.uri')
+        uri = 'valid.uri'
+        m_type = Metrics.DATASOURCE
         start = 213123
         end = TimeUUID()
         data = []
         with self.assertRaises(TypeError) as cm:
-            messages.SendDataInterval(metric=metric, start=start, end=end, data=data)
+            messages.SendDataInterval(uri=uri, m_type=m_type, start=start, end=end, data=data)
         self.assertEqual(str(cm.exception), 'value is not a valid TimeUUID: '+str(start))
 
     def test_SendDataInterval_failure_invalid_end(self):
         ''' creating a new RequestData instance should fail if end is not valid. '''
-        metric=Datasource(uri='valid.uri')
+        uri = 'valid.uri'
+        m_type = Metrics.DATASOURCE
         start = TimeUUID()
         end = 213123
         data = []
         with self.assertRaises(TypeError) as cm:
-            messages.SendDataInterval(metric=metric, start=start, end=end, data=data)
+            messages.SendDataInterval(uri=uri, m_type=m_type, start=start, end=end, data=data)
         self.assertEqual(str(cm.exception), 'value is not a valid TimeUUID: '+str(end))
 
     def test_SendDataInterval_failure_invalid_data_not_a_list(self):
         ''' creating a new RequestData instance should fail if data is not a list. '''
-        metric=Datasource(uri='valid.uri')
+        uri = 'valid.uri'
+        m_type = Metrics.DATASOURCE
         start = TimeUUID()
         end = TimeUUID()
         data = tuple()
         with self.assertRaises(TypeError) as cm:
-            messages.SendDataInterval(metric=metric, start=start, end=end, data=data)
+            messages.SendDataInterval(uri=uri, m_type=m_type, start=start, end=end, data=data)
         self.assertEqual(str(cm.exception), 'Invalid data')
 
     def test_SendDataInterval_failure_invalid_data_item_not_a_list(self):
         ''' creating a new RequestData instance should fail if a data item is not a list.'''
-        metric=Datasource(uri='valid.uri')
+        uri = 'valid.uri'
+        m_type = Metrics.DATASOURCE
         start = TimeUUID()
         end = TimeUUID()
         data =[{'set'}]
         with self.assertRaises(TypeError) as cm:
-            messages.SendDataInterval(metric=metric, start=start, end=end, data=data)
+            messages.SendDataInterval(uri=uri, m_type=m_type, start=start, end=end, data=data)
         self.assertEqual(str(cm.exception), 'Invalid data')
 
     def test_SendDataInterval_failure_invalid_data_item_does_not_have_two_items(self):
         ''' creating a new RequestData instance should fail if a data item does not have two items'''
-        metric=Datasource(uri='valid.uri')
+        uri = 'valid.uri'
+        m_type = Metrics.DATASOURCE
         start = TimeUUID()
         end = TimeUUID()
         data =[
@@ -934,12 +952,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             [TimeUUID().hex,'ds content 253232323','extra!'],
         ]
         with self.assertRaises(TypeError) as cm:
-            messages.SendDataInterval(metric=metric, start=start, end=end, data=data)
+            messages.SendDataInterval(uri=uri, m_type=m_type, start=start, end=end, data=data)
         self.assertEqual(str(cm.exception), 'Invalid data')
 
     def test_SendDataInterval_failure_invalid_data_item_t_is_invalid(self):
         ''' creating a new RequestData instance should fail if a data item t is invalid '''
-        metric=Datasource(uri='valid.uri')
+        uri = 'valid.uri'
+        m_type = Metrics.DATASOURCE
         start = TimeUUID()
         end = TimeUUID()
         data =[
@@ -951,11 +970,12 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             [TimeUUID().hex,'ds content 253232323'],
         ]
         with self.assertRaises(AttributeError) as cm:
-            messages.SendDataInterval(metric=metric, start=start, end=end, data=data)
+            messages.SendDataInterval(uri=uri, m_type=m_type, start=start, end=end, data=data)
 
     def test_SendDataInterval_failure_invalid_data_item_content_is_invalid_dp_content(self):
         ''' creating a new RequestData instance should fail if a data item content is invalid '''
-        metric=Datapoint(uri='valid.uri')
+        uri = 'valid.uri'
+        m_type = Metrics.DATAPOINT
         start = TimeUUID()
         end = TimeUUID()
         data =[
@@ -966,12 +986,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             [TimeUUID().hex,'ds content 253232323'],
         ]
         with self.assertRaises(TypeError) as cm:
-            messages.SendDataInterval(metric=metric, start=start, end=end, data=data)
+            messages.SendDataInterval(uri=uri, m_type=m_type, start=start, end=end, data=data)
         self.assertEqual(str(cm.exception), 'value not a number')
 
     def test_SendDataInterval_failure_invalid_data_item_content_is_invalid_ds_content(self):
         ''' creating a new RequestData instance should fail if a data item content is invalid '''
-        metric=Datasource(uri='valid.uri')
+        uri = 'valid.uri'
+        m_type = Metrics.DATASOURCE
         start = TimeUUID()
         end = TimeUUID()
         data =[
@@ -982,12 +1003,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             [TimeUUID().hex,'ds content 253232323'],
         ]
         with self.assertRaises(TypeError) as cm:
-            messages.SendDataInterval(metric=metric, start=start, end=end, data=data)
+            messages.SendDataInterval(uri=uri, m_type=m_type, start=start, end=end, data=data)
         self.assertEqual(str(cm.exception), 'value not a string')
 
     def test_SendDataInterval_failure_invalid_seq(self):
         ''' creating a new RequestData instance should fail if set is invalid '''
-        metric=Datasource(uri='valid.uri')
+        uri = 'valid.uri'
+        m_type = Metrics.DATASOURCE
         start = TimeUUID()
         end = TimeUUID()
         seq = uuid.uuid1().hex
@@ -1000,12 +1022,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             [TimeUUID().hex,'ds content 253232323'],
         ]
         with self.assertRaises(TypeError) as cm:
-            msg=messages.SendDataInterval(metric=metric, start=start, end=end, data=data, seq=seq, irt=irt)
+            msg=messages.SendDataInterval(uri=uri, m_type=m_type, start=start, end=end, data=data, seq=seq, irt=irt)
         self.assertEqual(str(cm.exception), 'Invalid sequence')
 
     def test_SendDataInterval_failure_invalid_irt(self):
         ''' creating a new RequestData instance should fail if set is invalid '''
-        metric=Datasource(uri='valid.uri')
+        uri = 'valid.uri'
+        m_type = Metrics.DATASOURCE
         start = TimeUUID()
         end = TimeUUID()
         seq = uuid.uuid1().hex[0:20]
@@ -1018,12 +1041,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             [TimeUUID().hex,'ds content 253232323'],
         ]
         with self.assertRaises(TypeError) as cm:
-            msg=messages.SendDataInterval(metric=metric, start=start, end=end, data=data, seq=seq, irt=irt)
+            msg=messages.SendDataInterval(uri=uri, m_type=m_type, start=start, end=end, data=data, seq=seq, irt=irt)
         self.assertEqual(str(cm.exception), 'Invalid irt')
 
     def test_SendDataInterval_success_datasource(self):
         ''' creating a new RequestData instance should succeed '''
-        metric=Datasource(uri='valid.uri')
+        uri = 'valid.uri'
+        m_type = Metrics.DATASOURCE
         start = TimeUUID()
         end = TimeUUID()
         seq = uuid.uuid1().hex[0:20]
@@ -1035,8 +1059,9 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             [TimeUUID().hex,'ds content 25623'],
             [TimeUUID().hex,'ds content 253232323'],
         ]
-        msg=messages.SendDataInterval(metric=metric, start=start, end=end, data=data, seq=seq, irt=irt)
-        self.assertEqual(msg.metric, metric)
+        msg=messages.SendDataInterval(uri=uri, m_type=m_type, start=start, end=end, data=data, seq=seq, irt=irt)
+        self.assertEqual(msg.uri, uri)
+        self.assertEqual(msg.m_type, m_type)
         self.assertEqual(msg.start, start)
         self.assertEqual(msg.end, end)
         self.assertEqual(msg.seq, seq)
@@ -1045,7 +1070,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
 
     def test_SendDataInterval_success_datapoint(self):
         ''' creating a new RequestData instance should succeed '''
-        metric=Datapoint(uri='valid.uri')
+        uri = 'valid.uri'
+        m_type = Metrics.DATAPOINT
         start = TimeUUID()
         end = TimeUUID()
         seq = uuid.uuid1().hex[0:20]
@@ -1057,8 +1083,9 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             [TimeUUID().hex,'25623'],
             [TimeUUID().hex,'253232323'],
         ]
-        msg=messages.SendDataInterval(metric=metric, start=start, end=end, data=data, seq=seq, irt=irt)
-        self.assertEqual(msg.metric, metric)
+        msg=messages.SendDataInterval(uri=uri, m_type=m_type, start=start, end=end, data=data, seq=seq, irt=irt)
+        self.assertEqual(msg.uri, uri)
+        self.assertEqual(msg.m_type, m_type)
         self.assertEqual(msg.start, start)
         self.assertEqual(msg.end, end)
         self.assertEqual(msg.seq, seq)
@@ -1664,7 +1691,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg=messages.SendDataInterval.load_from_dict(source)
         self.assertEqual(msg.v, messages.KomlogMessage._version_)
         self.assertEqual(msg.action, messages.Actions.SEND_DATA_INTERVAL)
-        self.assertEqual(msg.metric, Datasource(uri=uri['uri']))
+        self.assertEqual(msg.uri, uri['uri'])
+        self.assertEqual(msg.m_type, Metrics(uri['type']))
         self.assertEqual(msg.start, start)
         self.assertEqual(msg.end, end)
         self.assertEqual(sorted(msg.data, key=lambda x:x[0]), sorted([(TimeUUID(string=item[0]),item[1]) for item in data]))
@@ -1698,7 +1726,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg=messages.SendDataInterval.load_from_dict(source)
         self.assertEqual(msg.v, messages.KomlogMessage._version_)
         self.assertEqual(msg.action, messages.Actions.SEND_DATA_INTERVAL)
-        self.assertEqual(msg.metric, Datapoint(uri=uri['uri']))
+        self.assertEqual(msg.uri, uri['uri'])
+        self.assertEqual(msg.m_type, Metrics(uri['type']))
         self.assertEqual(msg.start, start)
         self.assertEqual(msg.end, end)
         self.assertEqual(sorted(msg.data, key=lambda x:x[0]), sorted([(TimeUUID(string=item[0]),decimal.Decimal(item[1])) for item in data]))

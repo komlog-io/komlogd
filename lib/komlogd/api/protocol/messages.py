@@ -1,10 +1,9 @@
 import uuid
 import decimal
-import pandas as pd
 from enum import Enum, unique
 from komlogd.api.common import timeuuid
 from komlogd.api.protocol import validation
-from komlogd.api.model.metrics import Metrics, Datasource, Datapoint
+from komlogd.api.model.metrics import Metrics
 
 @unique
 class Actions(Enum):
@@ -455,24 +454,34 @@ class RequestData(KomlogMessage):
 class SendDataInterval(KomlogMessage):
     _action_ = Actions.SEND_DATA_INTERVAL
 
-    def __init__(self, metric, start, end, data, seq=None, irt=None):
+    def __init__(self, uri, m_type, start, end, data, seq=None, irt=None):
         self.seq=seq if seq else uuid.uuid1().hex[0:20]
         self.irt=irt
-        self.metric = metric
+        self.uri = uri
+        self.m_type = m_type
         self.start = start
         self.end = end
         self.data = data
 
     @property
-    def metric(self):
-        return self._metric
+    def uri(self):
+        return self._uri
 
-    @metric.setter
-    def metric(self, metric):
-        if isinstance(metric, Datasource) or isinstance(metric, Datapoint):
-            self._metric = metric
+    @uri.setter
+    def uri(self, value):
+        validation.validate_uri(value)
+        self._uri = value
+
+    @property
+    def m_type(self):
+        return self._m_type
+
+    @m_type.setter
+    def m_type(self, value):
+        if value in Metrics:
+            self._m_type = value
         else:
-            raise TypeError('Invalid metric type')
+            raise TypeError('Invalid m_type')
 
     @property
     def start(self):
@@ -498,24 +507,17 @@ class SendDataInterval(KomlogMessage):
 
     @data.setter
     def data(self, data):
-        for item in data:
-            if not len(item)==2:
-                print('item no vale 2',item)
-            elif isinstance(self._metric, Datapoint) and not validation.validate_dp_value(item[1]):
-                print('num no valido',item)
-            elif isinstance(self._metric, Datasource) and not validation.validate_ds_value(item[1]):
-                print('ds no valido',item)
         if (isinstance(data, list)
             and all(
                 isinstance(item,list)
                 and len(item)==2
-                and (validation.validate_dp_value(item[1]) if isinstance(self._metric, Datapoint) else validation.validate_ds_value(item[1]))
+                and (validation.validate_dp_value(item[1]) if self.m_type == Metrics.DATAPOINT else validation.validate_ds_value(item[1]))
                 for item in data)
             ):
-            if isinstance(self._metric, Datasource):
-                self._data=[(timeuuid.TimeUUID(string=row[0]),row[1]) for row in data]
-            elif isinstance(self._metric, Datapoint):
+            if self.m_type == Metrics.DATAPOINT:
                 self._data=[(timeuuid.TimeUUID(string=row[0]),decimal.Decimal(str(row[1]))) for row in data]
+            else:
+                self._data=[(timeuuid.TimeUUID(string=row[0]),row[1]) for row in data]
         else:
             raise TypeError('Invalid data')
 
@@ -538,15 +540,15 @@ class SendDataInterval(KomlogMessage):
             and 'end' in msg['payload']
             and 'data' in msg['payload']):
             if msg['payload']['uri']['type'] == Metrics.DATASOURCE.value:
-                metric = Datasource(uri=msg['payload']['uri']['uri'])
+                m_type = Metrics.DATASOURCE
             elif msg['payload']['uri']['type'] == Metrics.DATAPOINT.value:
-                metric = Datapoint(uri=msg['payload']['uri']['uri'])
+                m_type = Metrics.DATAPOINT
             else:
                 raise TypeError ('Invalid metric type')
             start = timeuuid.TimeUUID(string = msg['payload']['start'])
             end = timeuuid.TimeUUID(string = msg['payload']['end'])
             data=msg['payload']['data']
-            return cls(metric=metric,start=start,end=end,data=data,seq=msg['seq'],irt=msg['irt'])
+            return cls(uri=msg['payload']['uri']['uri'], m_type=m_type, start=start, end=end, data=data, seq=msg['seq'], irt=msg['irt'])
         else:
             raise TypeError('Could not load message, invalid type')
 
