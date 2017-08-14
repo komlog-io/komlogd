@@ -1,6 +1,6 @@
 import asyncio
 import traceback
-from komlogd.api import logging
+from komlogd.api.common import logging
 
 class ExitMessage:
     pass

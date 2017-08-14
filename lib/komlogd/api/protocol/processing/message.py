@@ -1,30 +1,31 @@
 import asyncio
 import json
-from komlogd.api import logging
-from komlogd.api.protocol.processing import procedure as prproc
-from komlogd.api.protocol.model.types import Metrics, Actions, Datasource, Datapoint, Metric
+from komlogd.api.common import logging
+from komlogd.api.protocol.messages import Actions
+from komlogd.api.model.metrics import Metrics, Datasource, Datapoint, Metric
+from komlogd.api.model.transfer_methods import tmIndex
 
 
 def process_message_send_multi_data(msg, session, **kwargs):
     metrics=[]
     for item in msg.uris:
         if item['type'] == Metrics.DATASOURCE:
-            metric=Datasource(uri=item['uri'])
+            metric=Datasource(uri=item['uri'], session=session)
         elif item['type'] == Metrics.DATAPOINT:
-            metric=Datapoint(uri=item['uri'])
-        if not session._metrics_store.isin(metric=metric, ts=msg.ts, content=item['content']):
-            session._metrics_store.store(metric, msg.ts, item['content'])
+            metric=Datapoint(uri=item['uri'], session=session)
+        if not session.store.is_in(metric=metric, t=msg.t, value=item['content']):
+            session.store.insert(metric, msg.t, item['content'])
             metrics.append(metric)
-    transfer_methods = session._transfer_methods.get_on_update_transfer_methods(metrics=metrics)
-    for item in transfer_methods:
-        logging.logger.debug('Requesting execution of method: '+item.f.__name__)
-        asyncio.ensure_future(prproc.exec_transfer_method(mid=item.mid,ts=msg.ts,metrics=metrics,session=session))
+    tmIndex.metrics_updated(t=msg.t, metrics=metrics)
 
 def process_message_send_data_interval(msg, session, **kwargs):
-    logging.logger.debug('Received data for uri: '+msg.metric.uri)
-    logging.logger.debug('Interval ['+msg.start.isoformat()+' - '+msg.end.isoformat()+']')
+    #TODO: msg should contain uri instead of metric object.
+    if isinstance(msg.metric, Datapoint):
+        metric = Datapoint(uri=msg.metric.uri, session =session)
+    elif isinstance(msg.metric, Datasource):
+        metric = Datasource(uri=msg.metric.uri, session =session)
     for row in msg.data[::-1]:
-        session._metrics_store.store(metric=msg.metric, ts=row[0], content=row[1])
+        session.store.insert(metric, row[0], row[1])
 
 def process_message_generic_response(msg, session, **kwargs):
     logging.logger.debug('Received generic_response message')

@@ -3,28 +3,24 @@ import aiohttp
 import json
 import traceback
 import time
-import pandas as pd
 import uuid
-from komlogd.api import logging, exceptions, crypto
-from komlogd.api.protocol.model import messages, validation
+import pandas as pd
+from komlogd.api.common import logging, exceptions, crypto
+from komlogd.api.protocol import messages, validation
 from komlogd.api.protocol.processing import message as prmsg
-from komlogd.api.protocol.processing import procedure as prproc
-from komlogd.api.model import store, transfer_methods, queues
+from komlogd.api.model import store, queues
 from komlogd.api.model.session import sessionIndex
 
-KOMLOG_LOGIN_URL = 'https://www.komlog.io/login'
-KOMLOG_WS_URL = 'https://agents.komlog.io/'
 
 
 class KomlogSession:
-    def __init__(self, username, privkey, loop=None):
-        loop = loop or asyncio.get_event_loop()
+
+    def __init__(self, username, privkey):
         self.sid = uuid.uuid4()
-        self._loop = loop
         self.username = username
         self.privkey = privkey
-        self._metrics_store = store.MetricsStore(owner=self.username)
-        self._transfer_methods = transfer_methods.TransferMethodsIndex(owner=self.username)
+        self.store = store.MetricStore()
+        self._loop = asyncio.get_event_loop()
         self._session = None
         self._ws = None
         self._session_future = None
@@ -33,6 +29,9 @@ class KomlogSession:
         self._waiting_response = {}
         self._q_msg_workers = queues.AsyncQueue(num_workers=5, on_msg=self._process_received_message, name='Message Workers', loop=self._loop)
         sessionIndex.register_session(self)
+
+    def __del__(self):
+        sessionIndex.unregister_session(self.sid)
 
     @property
     def username(self):
@@ -104,7 +103,8 @@ class KomlogSession:
             'pv':messages.KomlogMessage._version_
         }
         try:
-            async with self._session.post(KOMLOG_LOGIN_URL,data=data) as resp:
+            login_url = 'https://www.komlog.io/login'
+            async with self._session.post(login_url, data=data) as resp:
                 resp_content = await resp.json()
                 if resp.status == 403:
                     logging.logger.error('Access Denied')
@@ -119,7 +119,7 @@ class KomlogSession:
             s = crypto.sign_message(self._privkey, c)
             data['c']=c
             data['s']=s
-            async with self._session.post(KOMLOG_LOGIN_URL,data=data) as resp:
+            async with self._session.post(login_url, data=data) as resp:
                 resp_content = await resp.json()
                 if resp.status == 403:
                     logging.logger.error('Access Denied. is agent active?')
@@ -131,7 +131,8 @@ class KomlogSession:
 
     async def _ws_connect(self):
         try:
-            self._ws = await self._session.ws_connect(KOMLOG_WS_URL)
+            ws_url = 'https://agents.komlog.io/'
+            self._ws = await self._session.ws_connect(ws_url)
         except:
             if self._ws:
                 await self._ws.close()
@@ -147,7 +148,7 @@ class KomlogSession:
                 elif not self._ws:
                     logging.logger.debug('Restarting websocket connection')
                     await self._ws_connect()
-                self._ws_reconnected()
+                await self._ws_reconnected()
                 async for msg in self._ws:
                     logging.logger.debug('Message received from server: '+str(msg))
                     if msg.tp == aiohttp.WSMsgType.CLOSED:
@@ -156,7 +157,7 @@ class KomlogSession:
                         break
                     else:
                         await self._q_msg_workers.push(msg)
-                        self._metrics_store.run_maintenance()
+                        self.store.run_maintenance()
             except Exception:
                 ex_info=traceback.format_exc().splitlines()
                 for line in ex_info:
@@ -172,38 +173,15 @@ class KomlogSession:
                     self._ws_disconnected()
                     await asyncio.sleep(15)
 
-    def register_transfer_method(self, tm):
-        if self._transfer_methods.add_transfer_method(tm, enabled=False):
-            if self._ws:
-                asyncio.ensure_future(prproc.initialize_transfer_method(self, tm))
-        else:
-            logging.logger.error('Error loading transfer method '+tm.f.__name__)
-
-    def delete_transfer_method(self, mid):
-        self._transfer_methods.delete_transfer_method(mid)
-
     def _ws_disconnected(self):
-        self._transfer_methods.disable_all()
+        self.store.clear_synced()
 
-    def _ws_reconnected(self):
+    async def _ws_reconnected(self):
+        await self.store.sync()
         for msg in self._deferred[:]:
             logging.logger.debug('sending deferred message')
             self._deferred.remove(msg)
-            self._send_message(msg)
-        asyncio.ensure_future(prproc.initialize_transfer_methods(self))
-
-    async def _periodic_transfer_method_call(self, mid):
-        logging.logger.debug('periodic_transfer_method_call '+mid.hex)
-        t = time.time()
-        await asyncio.sleep(60-t%60)
-        localtime = time.localtime(t+(60-t%60))
-        tm_info = self._transfer_methods.get_transfer_method_info(mid)
-        if (tm_info and
-            tm_info['enabled']):
-            if tm_info['tm'].schedule.meets(t=localtime):
-                ts=pd.Timestamp(ts_input=t+(60-t%60), unit='s', tz='utc')
-                await prproc.exec_transfer_method(session=self, mid=tm_info['tm'].mid, ts=ts, metrics=[])
-            asyncio.ensure_future(self._periodic_transfer_method_call(mid))
+            await self.send_message(msg)
 
     async def _process_received_message(self, msg):
         try:
@@ -227,7 +205,15 @@ class KomlogSession:
             for line in ex_info:
                 logging.logger.error(line)
 
-    def _send_message(self, message):
+    def _mark_message_done(self, seq):
+        self._waiting_response.pop(seq,None)
+
+    def _mark_message_undone(self, seq):
+        future = asyncio.futures.Future(loop=self._loop)
+        self._waiting_response[seq]=future
+        return future
+
+    async def send_message(self, message, defer=True, timeout=None, defer_timeout=None):
         if not isinstance(message, messages.KomlogMessage):
             raise exceptions.InvalidMessageException()
         try:
@@ -237,24 +223,21 @@ class KomlogSession:
             ex_info=traceback.format_exc().splitlines()
             for line in ex_info:
                 logging.logger.error(line)
-            self._deferred.append(message)
-
-    async def _await_response(self, message):
-        self._send_message(message)
-        future = self._mark_message_undone(message.seq)
-        return await future
-
-    def _mark_message_done(self, seq):
-        self._waiting_response.pop(seq,None)
-
-    def _mark_message_undone(self, seq):
-        future = asyncio.futures.Future(loop=self._loop)
-        self._waiting_response[seq]=future
-        return future
-
-    async def send_samples(self, samples):
-        logging.logger.debug('sending samples')
-        result = await prproc.send_samples(self, samples)
-        logging.logger.debug('result: {}'.format(str(result)))
-        return result
+            if defer:
+                self._deferred.append(message)
+                fut = self._mark_message_undone(message.seq)
+                try:
+                    result = await asyncio.wait_for(fut, defer_timeout)
+                    return result
+                except asyncio.TimeoutError:
+                    return None
+            else:
+                return None
+        else:
+            fut = self._mark_message_undone(message.seq)
+            try:
+                result = asyncio.wait_for(fut, timeout)
+                return result
+            except asyncio.TimeoutError:
+                return None
 

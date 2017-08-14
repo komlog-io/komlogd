@@ -3,15 +3,10 @@ import unittest
 from setuptools import setup, find_packages
 
 version = '0.7.1'
+
 if not sys.version_info[0] == 3 and not sys.version_info[1] >= 5:
     sys.exit("Sorry, Python 3.5 or greater required.")
 
-print (find_packages())
-
-def get_test_suite():
-    test_loader = unittest.TestLoader()
-    test_suite = test_loader.discover('lib/komlogd', pattern='test_*.py')
-    return test_suite
 
 setup(
     name='komlogd',
@@ -21,10 +16,10 @@ setup(
     author_email='hello@komlog.io',
     url='https://github.com/komlog-io/komlogd',
     license='Apache Software License',
-    install_requires=['pyyaml', 'setuptools', 'cryptography', 'aiohttp>=2.0', 'pandas>=0.18'],
+    install_requires=['pyyaml', 'setuptools', 'cryptography', 'aiohttp>=2.0', 'pandas>=0.18.1'],
     package_dir={ '': 'lib' },
     packages = find_packages('lib'),
-    test_suite = 'setup.get_test_suite',
+    test_suite = 'komlogd',
     scripts=[
        'bin/komlogd',
     ],

@@ -5,150 +5,148 @@ Transfer Methods
 '''
 
 import asyncio
-import uuid
-from komlogd.api import logging, uri
-from komlogd.api.protocol.model import validation
-from komlogd.api.protocol.model.schedules import OnUpdateSchedule, CronSchedule
+import time
+import pandas as pd
+from komlogd.api.common import logging, exceptions, timeuuid
+from komlogd.api.model import schedules
 
 class TransferMethodsIndex:
 
-    def __init__(self, owner):
-        self.owner = owner
+    def __init__(self):
         self._enabled_methods={}
         self._disabled_methods = {}
-        self.uri_transfer_methods={}
-        self.metrics={}
-        self.on_update_uri_transfer_methods={}
-        self.on_update_metrics={}
 
-    @property
-    def owner(self):
-        return self._owner
-
-    @owner.setter
-    def owner(self, value):
-        if value is None:
-            self._owner = None
-        else:
-            validation.validate_username(value)
-            self._owner = value.lower()
-
-    def add_transfer_method(self, transfer_method, enabled=False):
-        if self.get_transfer_method_info(transfer_method.mid):
+    def add_tm(self, tm):
+        if self.get_tm_info(tm.mid):
             return False
-        if self.owner:
-            transfer_method._initialize(owner = self.owner)
-            for m in transfer_method.m_in:
-                guri = uri.get_global_uri(m, owner=self.owner)
-                if guri not in self.metrics:
-                    self.metrics[guri]=m
-                try:
-                    self.uri_transfer_methods[guri].add(transfer_method.mid)
-                except KeyError:
-                    self.uri_transfer_methods[guri]={transfer_method.mid}
-            if isinstance(transfer_method.schedule, OnUpdateSchedule):
-                for m in transfer_method.schedule.metrics:
-                    guri = uri.get_global_uri(m, owner=self.owner)
-                    if guri not in self.on_update_metrics:
-                        self.on_update_metrics[guri]=m
-                    try:
-                        self.on_update_uri_transfer_methods[guri].add(transfer_method.mid)
-                    except KeyError:
-                        self.on_update_uri_transfer_methods[guri]={transfer_method.mid}
-        if enabled:
-            self._enabled_methods[transfer_method.mid]=transfer_method
-        else:
-            self._disabled_methods[transfer_method.mid]=transfer_method
+        self._disabled_methods[tm.mid]={'tm':tm, 'first':None}
+        asyncio.ensure_future(self.enable_tm(tm.mid))
         return True
 
-    def enable_transfer_method(self, mid):
-        if mid in self._disabled_methods:
-            logging.logger.debug('enabling disabled method '+str(mid))
-            self._enabled_methods[mid]=self._disabled_methods.pop(mid)
+    async def enable_tm(self, mid):
+        tm_info = self._disabled_methods.pop(mid, None)
+        if tm_info:
+            logging.logger.debug('enabling tm '+mid.hex)
+            try:
+                for metric in tm_info['tm'].schedule.activation_metrics:
+                    result = await metric.session.store.hook(metric=metric)
+                    if result['hooked'] == False:
+                        logging.logger.error('Error syncing metric {}. Aborting tm initialization'.format(metric.uri))
+                        return False
+            except (exceptions.SessionException, exceptions.SessionNotFoundException) as e:
+                logging.logger.error('Error syncing metric {}. Aborting tm initialization'.format(metric.uri))
+                logging.logger.error('Error: {}.'.format(e.msg))
+                self._disabled_methods[mid]=tm_info
+                if tm_info['first'] == None:
+                    asyncio.ensure_future(self._retry_failed())
+                return False
+            else:
+                if tm_info['first'] == None:
+                    now = pd.Timestamp('now', tz='utc')
+                    tm_info['first'] = now
+                    if tm_info['tm'].schedule.exec_on_load:
+                        t = timeuuid.TimeUUID()
+                        asyncio.ensure_future(tm_info['tm'].run(t=t, metrics=[]))
+            self._enabled_methods[mid] = tm_info
+            if isinstance(tm_info['tm'].schedule, schedules.CronSchedule):
+                asyncio.ensure_future(self._periodic_transfer_method_call(mid))
             return True
         elif mid in self._enabled_methods:
-            logging.logger.debug('enabling already enabled method '+str(mid))
-            return True
+            logging.logger.debug('tm already enabled '+mid.hex)
+            return False
         else:
+            logging.logger.debug('tm not found '+mid.hex)
             return False
 
-    def disable_transfer_method(self, mid):
-        if mid in self._enabled_methods:
-            logging.logger.debug('disabling enabled method '+str(mid))
-            self._disabled_methods[mid]=self._enabled_methods.pop(mid)
+    def disable_tm(self, mid):
+        tm_info = self._enabled_methods.pop(mid, None)
+        if tm_info:
+            logging.logger.debug('disabling tm '+mid.hex)
+            self._disabled_methods[mid] = tm_info
             return True
         elif mid in self._disabled_methods:
-            logging.logger.debug('disabling already disabled method '+str(mid))
-            return True
+            logging.logger.debug('tm already disabled '+mid.hex)
+            return False
         else:
+            logging.logger.debug('tm not found '+mid.hex)
             return False
 
-    def delete_transfer_method(self, mid):
+    def delete_tm(self, mid):
         self._enabled_methods.pop(mid,None)
         self._disabled_methods.pop(mid,None)
-        for guri, mids in self.uri_transfer_methods.items():
-            mids.pop(mid,None)
         return True
 
     def disable_all(self):
-        for mid in list(self._enabled_methods.keys()):
-            logging.logger.debug('Disabling transfer method '+str(mid))
-            self._disabled_methods[mid]=self._enabled_methods.pop(mid)
+        mids = list(self._enabled_methods.keys())
+        for mid in mids:
+            self.disable_tm(mid)
         return True
 
-    def get_transfer_method_info(self, mid):
+    async def enable_all(self):
+        mids = list(self._disabled_methods.keys())
+        for mid in mids:
+            await self.enable_tm(mid)
+        return True
+
+    def get_tm_info(self, mid):
         if mid in self._enabled_methods:
-            return {'enabled':True, 'tm':self._enabled_methods[mid]}
+            tm_info = self._enabled_methods[mid]
+            return {'enabled':True, 'tm':tm_info['tm']}
         elif mid in self._disabled_methods:
-            return {'enabled':False, 'tm':self._disabled_methods[mid]}
+            tm_info = self._disabled_methods[mid]
+            return {'enabled':False, 'tm':tm_info['tm']}
         else:
             return None
 
-    def get_transfer_methods(self, metrics=None, enabled=True):
-        mids=[]
-        if metrics is None:
-            if enabled:
-                transfer_methods = list(self._enabled_methods.values())
-            else:
-                transfer_methods = list(self._disabled_methods.values())
+    def metrics_updated(self, t, metrics):
+        tms = self._get_tms_activated_with(metrics)
+        for tm in tms:
+            logging.logger.debug('Requesting execution of tm: '+ tm.mid.hex)
+            asyncio.ensure_future(tm.run(t=t, metrics=metrics))
+
+    def _get_tms_activated_with(self, metrics, enabled=True):
+        if enabled:
+            items = self._enabled_methods.values()
         else:
-            for m in metrics:
-                if self.owner:
-                    guri = uri.get_global_uri(m, owner=self.owner)
-                else:
-                    guri = m.uri
-                if guri in self.metrics and self.metrics[guri].m_type is None:
-                    self.metrics[guri]=m
-                if guri in self.uri_transfer_methods:
-                    for mid in self.uri_transfer_methods[guri]:
-                        mids.append(mid)
-            mids=list(set(mids))
-            if enabled:
-                transfer_methods=[self._enabled_methods[mid] for mid in mids if mid in self._enabled_methods]
-            else:
-                transfer_methods=[self._disabled_methods[mid] for mid in mids if mid in self._disabled_methods]
-        return transfer_methods
+            items = self._disabled_methods.values()
+        tms = list(set([i['tm'] for m in metrics for i in items if m in i['tm'].schedule.activation_metrics]))
+        return tms
 
-    def get_on_update_transfer_methods(self, metrics):
-        mids=[]
-        for m in metrics:
-            if self.owner:
-                guri = uri.get_global_uri(m, owner=self.owner)
-            else:
-                guri = m.uri
-            if guri in self.on_update_metrics and self.on_update_metrics[guri].m_type is None:
-                self.on_update_metrics[guri]=m
-            if guri in self.on_update_uri_transfer_methods:
-                for mid in self.on_update_uri_transfer_methods[guri]:
-                    mids.append(mid)
-        mids=list(set(mids))
-        transfer_methods=[self._enabled_methods[mid] for mid in mids if mid in self._enabled_methods]
-        return transfer_methods
+    def _get_tms_that_meet(self, t, enabled=True):
+        tms=[]
+        if enabled:
+            for tm_info in self._enabled_methods.values():
+                if tm_info['tm'].schedule.meets(t):
+                    tms.append(tm_info['tm'])
+        else:
+            for tm_info in self._disabled_methods.values():
+                if tm_info['tm'].schedule.meets(t):
+                    tms.append(tm_info['tm'])
+        return tms
 
-    def get_cron_transfer_methods(self, t):
-        transfer_methods=[]
-        for tm in self._enabled_methods.values():
-            if isinstance(tm.schedule, CronSchedule) and tm.schedule.meets(t):
-                transfer_methods.append(tm)
-        return transfer_methods
+    async def _periodic_transfer_method_call(self, mid):
+        t = timeuuid.TimeUUID()
+        await asyncio.sleep(60-t.timestamp%60)
+        t=timeuuid.TimeUUID(t=t.timestamp+(60-t.timestamp%60))
+        localtime = time.localtime(t.timestamp)
+        tm_info = self.get_tm_info(mid)
+        if (tm_info and tm_info['enabled']):
+            if tm_info['tm'].schedule.meets(t=localtime):
+                logging.logger.debug('periodic_transfer_method_call '+mid.hex)
+                await tm_info['tm'].run(t=t, metrics=[])
+            asyncio.ensure_future(self._periodic_transfer_method_call(mid))
 
+    async def _retry_failed(self, sleep=5):
+        if getattr(self, '_retry_task', None) != None and self._retry_task.done() == False:
+            return False
+        self._retry_task = asyncio.Task.current_task()
+        await asyncio.sleep(sleep)
+        for mid,tm_info in self._disabled_methods.items():
+            if tm_info['first'] == None:
+                if not await self.enable_tm(mid):
+                    # enable_tm should have generated another retry_task
+                    return False
+        return True
+
+
+tmIndex = TransferMethodsIndex()

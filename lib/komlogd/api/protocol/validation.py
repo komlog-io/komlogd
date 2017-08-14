@@ -4,7 +4,9 @@ import re
 import pandas as pd
 from datetime import datetime
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
+from komlogd.api.common import timeuuid
 
+URILEVEL=re.compile('^[a-zA-Z0-9\-_]+(?!\s)$')
 LOCALURI=re.compile('^([a-zA-Z0-9\-_]+\.)*[a-zA-Z0-9\-_]+(?!\s)$')
 GLOBALURI=re.compile('^([a-zA-Z0-9\-_]+\.)*[a-zA-Z0-9\-_]+:([a-zA-Z0-9\-_]+\.)*[a-zA-Z0-9\-_]+(?!\s)$')
 USERNAME=re.compile('^([a-zA-Z0-9\-_]+\.)*[a-zA-Z0-9\-_]+(?!\s)$')
@@ -17,11 +19,32 @@ def validate_username(value):
 
 def validate_uri(value):
     if not isinstance(value,str):
-        raise TypeError('uri is not a string')
+        raise TypeError('value is not a string: '+str(value))
     if LOCALURI.search(value) or GLOBALURI.search(value):
         return True
     else:
-        raise TypeError('uri is not valid: '+value)
+        raise TypeError('value is not a valid uri: '+value)
+
+def validate_local_uri(value):
+    if not isinstance(value,str):
+        raise TypeError('value is not a string: '+str(value))
+    if LOCALURI.search(value):
+        return True
+    else:
+        raise TypeError('value is not a valid local uri: '+value)
+
+def validate_uri_level(value):
+    if not isinstance(value,str):
+        raise TypeError('value is not a string: '+str(value))
+    if URILEVEL.search(value):
+        return True
+    else:
+        raise TypeError('value is not a valid uri level: '+value)
+
+def validate_timeuuid(value):
+    if isinstance(value,timeuuid.TimeUUID) and value.version == 1:
+        return True
+    raise TypeError('value is not a valid TimeUUID: '+str(value))
 
 def validate_ts(value):
     if ((isinstance(value, str) and ISODATE.search(value))
@@ -32,34 +55,35 @@ def validate_ts(value):
             if t.tz is None:
                 raise TypeError('timezone is required')
             if t.nanosecond != 0:
-                raise TypeError('ts max precision')
+                raise TypeError('ts max precision is milliseconds')
             return True
         except ValueError:
-            raise TypeError('ts value is out of bounds')
+            raise TypeError('ts value is out of limits')
     else:
         raise TypeError('ts type is not valid')
 
 def validate_privkey(value):
     if isinstance(value, RSAPrivateKey) and value.key_size >= 4096:
         return True
-    raise TypeError('Invalid privkey')
+    raise TypeError('Invalid private key')
 
-def validate_ds_content(value):
+def validate_ds_value(value):
     if not isinstance(value, str):
-        raise TypeError('content is not a string')
+        raise TypeError('value not a string')
     if len(value.encode('utf-8'))>2**17:
-        raise TypeError('content size limit is 128K bytes')
+        raise TypeError('value size limit is 128K bytes')
     return True
 
-def validate_dp_content(value):
+def validate_dp_value(value):
     if isinstance(value,int) or isinstance(value,float):
         return True
     else:
         try:
-            num=decimal.Decimal(str(value))
+            num=decimal.Decimal(value)
+            float(num)
             return True
-        except (decimal.InvalidOperation, ValueError, TypeError):
-            raise TypeError('datapoint value not valid')
+        except (decimal.InvalidOperation, ValueError, TypeError, OverflowError):
+            raise TypeError('value not a number')
 
 def is_message_sequence(value):
     if not (isinstance(value,str) and len(value)==20):
@@ -87,4 +111,14 @@ def is_username(value):
     if isinstance(value,str) and USERNAME.search(value):
         return True
     return False
+
+def is_uuid1_hex(value):
+    try:
+        u = uuid.UUID(value)
+        if u.version == 1:
+            return True
+    except (ValueError, AttributeError):
+        return False
+    else:
+        return False
 

@@ -1,5 +1,6 @@
-from komlogd.api import exceptions
-from komlogd.api.protocol.model.types import Metric
+import inspect
+from komlogd.api.common import exceptions
+from komlogd.api.model.metrics import Metric
 
 class Schedule:
     def __new__(cls, *args, **kwargs):
@@ -18,31 +19,54 @@ class Schedule:
     def exec_on_load(self, value):
         self._exec_on_load = bool(value)
 
+    @property
+    def activation_metrics(self):
+        return []
+
+    def meets(self, *args, **kwargs):
+        return False
+
 class DummySchedule(Schedule):
     def __init__(self, exec_on_load=False):
         super().__init__(exec_on_load=exec_on_load)
 
 class OnUpdateSchedule(Schedule):
-    def __init__(self, metrics=None, exec_on_load=False):
-        self.metrics = metrics
+    def __init__(self, activation_metrics=None, exec_on_load=False):
+        self.activation_metrics = activation_metrics
         super().__init__(exec_on_load=exec_on_load)
 
     @property
-    def metrics(self):
-        return self._metrics
+    def activation_metrics(self):
+        return self._activation_metrics
 
-    @metrics.setter
-    def metrics(self, value):
+    @activation_metrics.setter
+    def activation_metrics(self, value):
         if value is None:
-            self._metrics = []
-        elif isinstance(value,list):
-            for m in value:
-                if not isinstance(m, Metric):
-                    raise exceptions.BadParametersException('Invalid metric: '+str(m))
-            else:
-                self._metrics = value
+            self._activation_metrics = []
         else:
-            raise exceptions.BadParametersException('"metrics" attribute must be a list')
+            metrics = self._inspect_activation_metrics(value, seen=set())
+            self._activation_metrics = metrics
+
+    def _inspect_activation_metrics(self, obj, seen):
+        metrics = []
+        my_id = id(obj)
+        if my_id in seen:
+            return metrics
+        else:
+            seen.add(my_id)
+        if isinstance(obj, Metric):
+            metrics.append(obj)
+        elif isinstance(obj, list) or isinstance(obj,tuple):
+            for i,item in enumerate(obj):
+                metrics.extend(self._inspect_activation_metrics(obj=obj[i], seen=seen))
+        elif isinstance(obj, dict):
+            for k,v in obj.items():
+                metrics.extend(self._inspect_activation_metrics(obj=obj[k], seen=seen))
+        else:
+            for att,value in inspect.getmembers(obj):
+                if isinstance(value,list) or isinstance(value,tuple) or isinstance(value,dict) or isinstance(value,Metric):
+                    metrics.extend(self._inspect_activation_metrics(obj=value, seen=seen))
+        return metrics
 
 class CronSchedule(Schedule):
     def __init__(self, minute='*', hour='*', month='*', dow='*', dom='*', exec_on_load=False):
@@ -60,11 +84,10 @@ class CronSchedule(Schedule):
 
     @minute.setter
     def minute(self, value):
-        sched_entry = self._process_var(value, 59, 0)
-        if sched_entry:
-            self._schedule['minute']=sched_entry
+        try:
+            self._schedule['minute'] = self._process_var(value, 59, 0)
             self._minute = value
-        else:
+        except (TypeError, AttributeError):
             raise exceptions.BadParametersException('Invalid minute value: '+str(value))
 
     @property
@@ -73,11 +96,10 @@ class CronSchedule(Schedule):
 
     @hour.setter
     def hour(self, value):
-        sched_entry = self._process_var(value, 23, 0)
-        if sched_entry:
-            self._schedule['hour']=sched_entry
+        try:
+            self._schedule['hour'] = self._process_var(value, 23, 0)
             self._hour = value
-        else:
+        except (TypeError, AttributeError):
             raise exceptions.BadParametersException('Invalid hour value: '+str(value))
 
     @property
@@ -86,11 +108,10 @@ class CronSchedule(Schedule):
 
     @month.setter
     def month(self, value):
-        sched_entry = self._process_var(value, 12, 1)
-        if sched_entry:
-            self._schedule['month']=sched_entry
+        try:
+            self._schedule['month'] = self._process_var(value, 12, 1)
             self._month = value
-        else:
+        except (TypeError, AttributeError):
             raise exceptions.BadParametersException('Invalid month value: '+str(value))
 
     @property
@@ -99,11 +120,10 @@ class CronSchedule(Schedule):
 
     @dow.setter
     def dow(self, value):
-        sched_entry = self._process_var(value, 6, 0)
-        if sched_entry:
-            self._schedule['dow']=sched_entry
+        try:
+            self._schedule['dow'] = self._process_var(value, 6, 0)
             self._dow = value
-        else:
+        except (TypeError, AttributeError):
             raise exceptions.BadParametersException('Invalid dow value: '+str(value))
 
     @property
@@ -112,14 +132,15 @@ class CronSchedule(Schedule):
 
     @dom.setter
     def dom(self, value):
-        sched_entry = self._process_var(value, 31, 1)
-        if sched_entry:
-            self._schedule['dom']=sched_entry
+        try:
+            self._schedule['dom'] = self._process_var(value, 31, 1)
             self._dom = value
-        else:
+        except (TypeError, AttributeError):
             raise exceptions.BadParametersException('Invalid dom value: '+str(value))
 
     def _process_var(self, value, max_value, min_value):
+        if not isinstance(value,str):
+            raise TypeError('value not a string')
         processed_entry=[]
         in_range=range(min_value,max_value+1)
         try:
@@ -132,8 +153,7 @@ class CronSchedule(Schedule):
             elif len(value.split(','))>1:
                 for group in value.split(','):
                     result=self._process_var(group,max_value,min_value)
-                    for value in result:
-                        processed_entry.append(value)
+                    processed_entry.extend(result)
             elif len(value.split('-'))>1:
                 r=value.split('-')
                 r_min=int(r[0])
@@ -158,8 +178,7 @@ class CronSchedule(Schedule):
                     for i in num_list:
                         if i%den_int==0:
                             tmp_list.append(i)
-                    for j in tmp_list:
-                        processed_entry.append(j)
+                    processed_entry.extend(tmp_list)
         result_list=list(set(processed_entry))
         return result_list
 

@@ -1,8 +1,21 @@
 import uuid
 import decimal
 import pandas as pd
-from komlogd.api.protocol.model import validation
-from komlogd.api.protocol.model.types import Metrics, Actions, Datasource, Datapoint
+from enum import Enum, unique
+from komlogd.api.common import timeuuid
+from komlogd.api.protocol import validation
+from komlogd.api.model.metrics import Metrics, Datasource, Datapoint
+
+@unique
+class Actions(Enum):
+    HOOK_TO_URI             = 'hook_to_uri'
+    SEND_MULTI_DATA         = 'send_multi_data'
+    SEND_DP_DATA            = 'send_dp_data'
+    SEND_DS_DATA            = 'send_ds_data'
+    UNHOOK_FROM_URI         = 'unhook_from_uri'
+    REQUEST_DATA            = 'request_data'
+    SEND_DATA_INTERVAL      = 'send_data_interval'
+    GENERIC_RESPONSE        = 'generic_response'
 
 
 class Catalog(type):
@@ -139,11 +152,11 @@ class GenericResponse(KomlogMessage):
 class SendDsData(KomlogMessage):
     _action_ = Actions.SEND_DS_DATA
 
-    def __init__(self, uri, ts, content, seq=None, irt=None):
+    def __init__(self, uri, t, content, seq=None, irt=None):
         self.seq=seq if seq else uuid.uuid1().hex[0:20]
         self.irt = irt
         self.uri=uri
-        self.ts=ts
+        self.t=t
         self.content=content
 
     @property
@@ -156,13 +169,13 @@ class SendDsData(KomlogMessage):
         self._uri=uri
 
     @property
-    def ts(self):
-        return self._ts
+    def t(self):
+        return self._t
 
-    @ts.setter
-    def ts(self, ts):
-        validation.validate_ts(ts)
-        self._ts=pd.Timestamp(ts)
+    @t.setter
+    def t(self, t):
+        validation.validate_timeuuid(t)
+        self._t=t
 
     @property
     def content(self):
@@ -170,7 +183,7 @@ class SendDsData(KomlogMessage):
 
     @content.setter
     def content(self, content):
-        validation.validate_ds_content(content)
+        validation.validate_ds_value(content)
         self._content=content
 
     def to_dict(self):
@@ -182,7 +195,7 @@ class SendDsData(KomlogMessage):
             'irt':self.irt,
             'payload':{
                 'uri':self.uri,
-                'ts':self.ts.isoformat(),
+                't':self.t.hex,
                 'content':self.content
             }
         }
@@ -190,11 +203,11 @@ class SendDsData(KomlogMessage):
 class SendDpData(KomlogMessage):
     _action_ = Actions.SEND_DP_DATA
 
-    def __init__(self, uri, ts, content, seq=None, irt=None):
+    def __init__(self, uri, t, content, seq=None, irt=None):
         self.seq=seq if seq else uuid.uuid1().hex[0:20]
         self.irt=irt
         self.uri=uri
-        self.ts=ts
+        self.t=t
         self.content=content
 
     @property
@@ -207,13 +220,13 @@ class SendDpData(KomlogMessage):
         self._uri=uri
 
     @property
-    def ts(self):
-        return self._ts
+    def t(self):
+        return self._t
 
-    @ts.setter
-    def ts(self, ts):
-        validation.validate_ts(ts)
-        self._ts=pd.Timestamp(ts)
+    @t.setter
+    def t(self, t):
+        validation.validate_timeuuid(t)
+        self._t=t
 
     @property
     def content(self):
@@ -221,7 +234,7 @@ class SendDpData(KomlogMessage):
 
     @content.setter
     def content(self, content):
-        validation.validate_dp_content(content)
+        validation.validate_dp_value(content)
         self._content = content if isinstance(content,decimal.Decimal) else decimal.Decimal(str(content))
 
     def to_dict(self):
@@ -233,7 +246,7 @@ class SendDpData(KomlogMessage):
             'irt':self.irt,
             'payload':{
                 'uri':self.uri,
-                'ts':self.ts.isoformat(),
+                't':self.t.hex,
                 'content':str(self.content)
             }
         }
@@ -241,10 +254,10 @@ class SendDpData(KomlogMessage):
 class SendMultiData(KomlogMessage):
     _action_ = Actions.SEND_MULTI_DATA
 
-    def __init__(self, ts, uris, seq=None, irt=None):
+    def __init__(self, t, uris, seq=None, irt=None):
         self.seq=seq if seq else uuid.uuid1().hex[0:20]
         self.irt=irt
-        self.ts=ts
+        self.t=t
         self.uris=uris
 
     @property
@@ -260,8 +273,8 @@ class SendMultiData(KomlogMessage):
             and all('type' in item for item in uris)
             and all(item['type'] in [m.value for m in Metrics] + [m for m in Metrics] for item in uris)
             and all('content' in item for item in uris)
-            and all(validation.validate_ds_content(item['content']) for item in uris if item['type'] in (Metrics.DATASOURCE.value, Metrics.DATASOURCE))
-            and all(validation.validate_dp_content(item['content']) for item in uris if item['type'] in (Metrics.DATAPOINT.value, Metrics.DATAPOINT))):
+            and all(validation.validate_ds_value(item['content']) for item in uris if item['type'] in (Metrics.DATASOURCE.value, Metrics.DATASOURCE))
+            and all(validation.validate_dp_value(item['content']) for item in uris if item['type'] in (Metrics.DATAPOINT.value, Metrics.DATAPOINT))):
             ds_uris=[{'uri':item['uri'],'type':Metrics(item['type']),'content':item['content']} for item in uris if item['type'] in ( Metrics.DATASOURCE.value, Metrics.DATASOURCE)]
             dp_uris=[{'uri':item['uri'],'type':Metrics(item['type']),'content':decimal.Decimal(str(item['content']))} for item in uris if item['type'] in (Metrics.DATAPOINT.value, Metrics.DATAPOINT)]
             self._uris=ds_uris+dp_uris
@@ -269,13 +282,13 @@ class SendMultiData(KomlogMessage):
             raise TypeError('Uris parameter not valid')
 
     @property
-    def ts(self):
-        return self._ts
+    def t(self):
+        return self._t
 
-    @ts.setter
-    def ts(self, ts):
-        validation.validate_ts(ts)
-        self._ts=pd.Timestamp(ts)
+    @t.setter
+    def t(self, t):
+        validation.validate_timeuuid(t)
+        self._t=t
 
     @classmethod
     def load_from_dict(cls, msg):
@@ -288,11 +301,11 @@ class SendMultiData(KomlogMessage):
             and isinstance(msg['v'],int) and msg['v']==cls._version_
             and isinstance(msg['action'],str) and msg['action']==cls._action_.value
             and isinstance(msg['payload'],dict)
-            and 'ts' in msg['payload']
+            and 't' in msg['payload']
             and 'uris' in msg['payload']):
-            ts=msg['payload']['ts']
-            uris=msg['payload']['uris']
-            return cls(ts=ts,uris=uris, seq=msg['seq'], irt=msg['irt'])
+            t = timeuuid.TimeUUID(string=msg['payload']['t'])
+            uris = msg['payload']['uris']
+            return cls(t=t, uris=uris, seq=msg['seq'], irt=msg['irt'])
         else:
             raise TypeError('Could not load message, invalid type')
 
@@ -306,7 +319,7 @@ class SendMultiData(KomlogMessage):
             'seq':self.seq,
             'irt':self.irt,
             'payload':{
-                'ts':self.ts.isoformat(),
+                't':self.t.hex,
                 'uris':ds_uris+dp_uris
             }
         }
@@ -396,8 +409,8 @@ class RequestData(KomlogMessage):
     @start.setter
     def start(self, start):
         if start is not None:
-            validation.validate_ts(start)
-            self._start=pd.Timestamp(start)
+            validation.validate_timeuuid(start)
+            self._start=start
         else:
             self._start = None
 
@@ -408,8 +421,8 @@ class RequestData(KomlogMessage):
     @end.setter
     def end(self, end):
         if end is not None:
-            validation.validate_ts(end)
-            self._end=pd.Timestamp(end)
+            validation.validate_timeuuid(end)
+            self._end=end
         else:
             self._end = None
 
@@ -433,8 +446,8 @@ class RequestData(KomlogMessage):
             'irt':self.irt,
             'payload':{
                 'uri':self._uri,
-                'start':self._start.isoformat() if self._start else None,
-                'end':self._end.isoformat() if self._end else None,
+                'start':self._start.hex if self._start else None,
+                'end':self._end.hex if self._end else None,
                 'count':self._count,
             }
         }
@@ -467,8 +480,8 @@ class SendDataInterval(KomlogMessage):
 
     @start.setter
     def start(self, start):
-        validation.validate_ts(start)
-        self._start = pd.Timestamp(start)
+        validation.validate_timeuuid(start)
+        self._start = start
 
     @property
     def end(self):
@@ -476,8 +489,8 @@ class SendDataInterval(KomlogMessage):
 
     @end.setter
     def end(self, end):
-        validation.validate_ts(end)
-        self._end = pd.Timestamp(end)
+        validation.validate_timeuuid(end)
+        self._end = end
 
     @property
     def data(self):
@@ -485,18 +498,24 @@ class SendDataInterval(KomlogMessage):
 
     @data.setter
     def data(self, data):
+        for item in data:
+            if not len(item)==2:
+                print('item no vale 2',item)
+            elif isinstance(self._metric, Datapoint) and not validation.validate_dp_value(item[1]):
+                print('num no valido',item)
+            elif isinstance(self._metric, Datasource) and not validation.validate_ds_value(item[1]):
+                print('ds no valido',item)
         if (isinstance(data, list)
             and all(
                 isinstance(item,list)
                 and len(item)==2
-                and validation.validate_ts(item[0])
-                and (validation.validate_dp_content(item[1]) if isinstance(self._metric, Datapoint) else validation.validate_ds_content(item[1]))
+                and (validation.validate_dp_value(item[1]) if isinstance(self._metric, Datapoint) else validation.validate_ds_value(item[1]))
                 for item in data)
             ):
             if isinstance(self._metric, Datasource):
-                self._data=[(pd.Timestamp(row[0]),row[1]) for row in data]
+                self._data=[(timeuuid.TimeUUID(string=row[0]),row[1]) for row in data]
             elif isinstance(self._metric, Datapoint):
-                self._data=[(pd.Timestamp(row[0]),decimal.Decimal(str(row[1]))) for row in data]
+                self._data=[(timeuuid.TimeUUID(string=row[0]),decimal.Decimal(str(row[1]))) for row in data]
         else:
             raise TypeError('Invalid data')
 
@@ -524,8 +543,8 @@ class SendDataInterval(KomlogMessage):
                 metric = Datapoint(uri=msg['payload']['uri']['uri'])
             else:
                 raise TypeError ('Invalid metric type')
-            start=msg['payload']['start']
-            end=msg['payload']['end']
+            start = timeuuid.TimeUUID(string = msg['payload']['start'])
+            end = timeuuid.TimeUUID(string = msg['payload']['end'])
             data=msg['payload']['data']
             return cls(metric=metric,start=start,end=end,data=data,seq=msg['seq'],irt=msg['irt'])
         else:

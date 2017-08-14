@@ -2,28 +2,41 @@ import uuid
 
 class SessionIndex:
     def __init__(self):
-        self.sessions = {}
+        self.sessions = []
 
     def register_session(self, session):
-        if not session:
+        if session is None:
             return False
-        self.sessions[session.sid]=session
+        if not session in self.sessions:
+            self.sessions.append(session)
         return True
 
     def unregister_session(self, sid):
-        if not sid or not isinstance(sid, uuid.UUID):
+        if sid is None or not isinstance(sid, uuid.UUID):
             return False
-        self.sessions.pop(sid, None)
-        return True
+        to_remove = None
+        for session in self.sessions:
+            if session.sid == sid:
+                to_remove = session
+                break
+        try:
+            self.sessions.remove(to_remove)
+        except ValueError:
+            pass
+        finally:
+            return True
 
     def get_session(self, sid=None):
-        if not sid:
-            sids = list(self.sessions.keys())
-            if len(sids)>0:
-                return self.sessions[sids[0]]
-            else:
-                return None
+        ''' if sid is None, return first session '''
+        if sid is None:
+            for session in self.sessions:
+                return session
+            return None
         else:
-            return self.sessions[sid] if sid in self.sessions else None
+            for session in self.sessions:
+                if session.sid == sid:
+                    return session
+            return None
 
 sessionIndex = SessionIndex()
+

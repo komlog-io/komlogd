@@ -1,5 +1,5 @@
 import os
-from komlogd.api import crypto
+from komlogd.api.common import crypto
 from komlogd.base import config, exceptions, logging
 from komlogd.base.settings import defaults, options
 

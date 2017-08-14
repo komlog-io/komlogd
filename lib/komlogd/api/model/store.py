@@ -4,168 +4,325 @@ Datastores
 
 '''
 
+import asyncio
 import time
 import decimal
 import pandas as pd
-from komlogd.api import logging, uri
-from komlogd.api.protocol.model import validation
-from komlogd.api.protocol.model.transfer_methods import DataRequirements
-from komlogd.api.protocol.model.types import Metric, Datasource, Datapoint
+from komlogd.api.common import exceptions, logging, timeuuid
+from komlogd.api.protocol import validation
+from komlogd.api.protocol.processing import procedure as prproc
+from komlogd.api.model.metrics import Metric, Datasource, Datapoint, Sample
 
 
-class MetricsStore:
-    def __init__(self, owner, maintenance_exec_delta=None, data_delta=None):
-        self.owner = owner
-        self.maintenance_exec_delta=maintenance_exec_delta
-        self.default_reqs=data_delta
-        self._last_maintenance_exec=pd.Timestamp('now',tz='utc')
-        self._metric_reqs={}
-        self._series={}
+class MetricStore:
 
-    @property
-    def owner(self):
-        return self._owner
+    def __init__(self):
+        self._dfs = {}
+        self._synced_ranges = {}
+        self._tr_dfs = {}
+        self._tr_synced_ranges = {}
+        self._hooked = set()
 
-    @owner.setter
-    def owner(self, value):
-        validation.validate_username(value)
-        self._owner = value.lower()
-
-    @property
-    def maintenance_exec_delta(self):
-        return self._maintenance_exec_delta
-
-    @maintenance_exec_delta.setter
-    def maintenance_exec_delta(self, value):
-        if value is None:
-            self._maintenance_exec_delta=pd.Timedelta('5 m')
-        elif isinstance(value, pd.Timedelta):
-            self._maintenance_exec_delta=value
-        else:
-            raise TypeError('Invalid maintenance_exec_delta parameter')
-
-    @property
-    def default_reqs(self):
-        return self._default_reqs
-
-    @default_reqs.setter
-    def default_reqs(self, value):
-        if value is None:
-            self._default_reqs=DataRequirements(past_delta=pd.Timedelta('10min'),past_count=2)
-        elif isinstance(value, DataRequirements):
-            self._default_reqs=value
-        else:
-            raise TypeError('Invalid data_delta parameter')
-
-    def store(self, metric, ts, content):
-        if isinstance(metric, Datasource):
-            validation.validate_ds_content(content)
-        elif isinstance(metric, Datapoint):
-            validation.validate_dp_content(content)
-        else:
-            return
-        validation.validate_ts(ts)
-        ts=pd.Timestamp(ts.astimezone('utc'))
-        guri = uri.get_global_uri(metric, owner=self.owner)
-        try:
-            if isinstance(content, decimal.Decimal):
-                value = int(content) if content%1 == 0 else float(content)
-            else:
-                value = content
-            self._series[guri][ts]=value
-            if self._series[guri].index[-1]<self._series[guri].index[-2]:
-                self._series[guri]=self._series[guri].sort_index()
-        except KeyError:
-            self._series[guri]=pd.Series(data=[value], index=[ts])
-        except IndexError:
-            pass
-
-    def isin(self, metric, ts, content):
-        guri = uri.get_global_uri(metric, owner=self.owner)
-        if not guri in self._series:
-            return False
-        elif not ts in self._series[guri]:
-            return False
-        elif not self._series[guri][ts] == content:
-            return False
+    async def sync(self):
+        if getattr(self, '_prev_hooked', False):
+            for metric in self._prev_hooked:
+                resp = await self.hook(metric)
+                if resp['hooked'] == False:
+                    return False
+            del self._prev_hooked
         return True
 
-    def run_maintenance(self):
-        now = pd.Timestamp('now',tz='utc')
-        if now - self.maintenance_exec_delta > self._last_maintenance_exec:
-            self.purge()
-            self._last_maintenance_exec=pd.Timestamp('now',tz='utc')
+    def clear_synced(self):
+        self._synced_ranges = {}
+        self._tr_synced_ranges = {}
+        for metric in self._hooked:
+            if not getattr(self, '_prev_hooked',False):
+                self._prev_hooked = set()
+            self._prev_hooked.add(metric)
+        self._hooked = set()
 
-    def purge(self):
-        now = pd.Timestamp('now',tz='utc')
-        for guri in self._series.keys():
-            reqs = self._metric_reqs[guri] if guri in self._metric_reqs else self._default_reqs
-            past_delta = reqs.past_delta if reqs.past_delta else self._default_reqs.past_delta
-            past_count = reqs.past_count if reqs.past_count else self._default_reqs.past_count
-            t1_delta = now-past_delta if past_delta else None
-            t1_count = self._series[guri][:now][-past_count:].index[0] if past_count else None
-            if t1_delta or t1_count:
-                count=self._series[guri].count()
-                if t1_delta and t1_count:
-                    t1 = t1_delta if t1_delta < t1_count else t1_count
+    def insert(self, metric, t, value):
+        sample = Sample(metric=metric, t=t, value=value)
+        tr = asyncio.Task.current_task().get_tr()
+        if tr:
+            tid = tr.tid
+            self._store(sample.metric, sample.t, sample.value, tm=time.monotonic(), op='i', tid=tid)
+            tr.add_dirty_item(self)
+        else:
+            self._store(sample.metric, sample.t, sample.value, tm=time.monotonic())
+
+    async def get(self, metric, t=None, start=None, end=None, count=None):
+        if t != None:
+            its = t
+            ets = t
+        else:
+            its = start
+            ets = end
+        for r in self._get_missing_ranges(metric, its=its, ets=ets):
+            await self._request_data_range(metric, r['its'], r['ets'], count)
+        return self._get_metric_data(metric, its, ets, count)
+
+    async def _request_data_range(self, metric, its, ets, count):
+        response = await prproc.request_data(metric, its, ets, count)
+        tr = asyncio.Task.current_task().get_tr()
+        if tr:
+            tr.add_dirty_item(self)
+            tid = tr.tid
+            op = 'g'
+        else:
+            tid = None
+            op = None
+        d = response['data']
+        for r in d:
+            sample = Sample(metric, r[0], r[1])
+            self._store(sample.metric, sample.t, sample.value, tm=time.monotonic(), op=op, tid=tid)
+        if count != None and count > 0 and len(d) == count:
+            its = min(r[0] for r in d)
+            ets = max(r[0] for r in d)
+        else:
+            if its == None:
+                if len(d) > 0 and count == None:
+                    its = min(r[0] for r in d)
                 else:
-                    t1 = t1_delta if t1_delta else t1_count
-                self._series[guri]=self._series[guri].ix[t1:now]
-                new_count=self._series[guri].count()
-                logging.logger.debug('Deleted '+str(count-new_count)+' rows from time series '+guri+' before: '+str(count)+' now: '+str(new_count))
-        end = pd.Timestamp('now',tz='utc')
-        elapsed = end-now
-        logging.logger.debug('Purge procedure finished. Elapsed time (s): '+'.'.join((str(elapsed.seconds),str(elapsed.microseconds).zfill(6))))
-        return True
+                    its = timeuuid.MIN_TIMEUUID
+            if ets == None:
+                if len(d) > 0 and count == None:
+                    ets = max(r[0] for r in d)
+                else:
+                    ets = timeuuid.MAX_TIMEUUID
+        if its and ets:
+            self._add_synced_range(metric, time.monotonic(), its, ets, tid)
 
-    def add_metric_data_reqs(self, metric, reqs):
-        if not isinstance(metric, Metric):
-            raise TypeError('Invalid metric type')
-        if not isinstance(reqs, DataRequirements):
-            raise TypeError('Invalid requirements type')
-        guri = uri.get_global_uri(metric, owner=self.owner)
-        if not guri in self._metric_reqs:
-            self._metric_reqs[guri]=reqs
+    def _store(self, metric, t, value, tm, op=None, tid=None):
+        if isinstance(value, decimal.Decimal):
+            tmp_value = int(value) if value%1 == 0 else float(value)
         else:
-            new_reqs = DataRequirements()
-            if reqs.past_delta and self._metric_reqs[guri].past_delta:
-                new_reqs.past_delta = reqs.past_delta if reqs.past_delta > self._metric_reqs[guri].past_delta else self._metric_reqs[guri].past_delta
-            elif reqs.past_delta:
-                new_reqs.past_delta = reqs.past_delta
+            tmp_value = value
+        if tid:
+            dfs = self._tr_dfs.get(tid, None)
+            if dfs == None:
+                dfs = {}
+                self._tr_dfs[tid] = dfs
+            df = dfs.get(metric, None)
+            if not isinstance(df, pd.DataFrame):
+                df = pd.DataFrame(columns=['t','value','op','value_orig'])
+                dfs[metric] = df
+            df.loc[tm]=[t, tmp_value, op, value]
+        else:
+            df = self._dfs.get(metric,None)
+            if not isinstance(df, pd.DataFrame):
+                df = pd.DataFrame(columns=['t','value'])
+                self._dfs[metric] = df
+            df.loc[tm]=[t, tmp_value]
+
+    def _get_missing_ranges(self, metric, its, ets):
+        def get_missing(ranges):
+            missing = [{'its':its, 'ets':ets}]
+            while True:
+                loop_missing = []
+                for miss in missing:
+                    keep = True
+                    for r in ranges:
+                        if miss['its'] < r['its']:
+                            if miss['ets'] > r['ets']:
+                                # slice it
+                                loop_missing.append({'its':miss['its'], 'ets':r['its']})
+                                loop_missing.append({'its':r['ets'], 'ets':miss['ets']})
+                                keep = False
+                                break
+                            elif miss['ets'] > r['its']:
+                                # keep lower
+                                loop_missing.append({'its':miss['its'], 'ets':r['its']})
+                                keep = False
+                                break
+                        elif miss['ets'] > r['ets']:
+                            if miss['its'] < r['its']:
+                                # slice it
+                                loop_missing.append({'its':miss['its'], 'ets':r['its']})
+                                loop_missing.append({'its':r['ets'], 'ets':miss['ets']})
+                                keep = False
+                                break
+                            elif miss['its'] < r['ets']:
+                                # keep higher
+                                loop_missing.append({'its':r['ets'], 'ets':miss['ets']})
+                                keep = False
+                                break
+                        elif r['its'] <= miss['its'] and r['ets'] >= miss['ets']:
+                            # remove it
+                            keep = False
+                            break
+                    if keep:
+                        # did not match any synced, keep it
+                        loop_missing.append(miss)
+                loop_missing = sorted(loop_missing, key=lambda x:x['ets'])
+                if missing == loop_missing:
+                    return missing
+                missing = loop_missing
+        tr = asyncio.Task.current_task().get_tr()
+        if tr:
+            ranges = self._tr_synced_ranges.get(tr.tid,None)
+            if ranges == None:
+                ranges = {}
+                self._tr_synced_ranges[tr.tid]=ranges
+            m_ranges = ranges.get(metric, None)
+            if m_ranges == None:
+                m_ranges = [r for r in self._synced_ranges.get(metric, []) if r['t']<=tr.tm]
+                ranges[metric] = m_ranges
+            missing = get_missing(m_ranges)
+        else:
+            m_ranges = self._synced_ranges.get(metric, None)
+            if m_ranges == None:
+                m_ranges = []
+                self._synced_ranges[metric] = m_ranges
+            missing = get_missing(m_ranges)
+        return missing
+
+    def _add_synced_range(self, metric, t, its, ets, tid=None):
+        def add_new_range(new, existing):
+            final = [new]
+            overlaps = []
+            for r in existing:
+                if r['ets'] <= ets and r['its'] >= its:
+                    continue
+                elif r['ets'] > its and r['its'] <= its:
+                    overlaps.append(r)
+                elif r['its'] < ets and r['ets'] >= ets:
+                    overlaps.append(r)
+                elif r['its'] <= its and r['ets'] >= ets:
+                    overlaps.append(r)
+                else:
+                    final.append(r)
+            for r in overlaps:
+                if r['its'] < its and r['ets'] > ets:
+                    final.append({'t':r['t'], 'its':r['its'], 'ets':its})
+                    final.append({'t':r['t'], 'its':ets, 'ets':r['ets']})
+                elif r['its'] < its and r['ets'] >= its:
+                    final.append({'t':r['t'], 'its':r['its'], 'ets':its})
+                elif r['its'] <= ets and r['ets'] > ets:
+                    final.append({'t':r['t'], 'its':ets, 'ets':r['ets']})
+                elif r['its'] >= its and r['ets'] <= ets:
+                    continue
+            final.sort(key = lambda r: r['its'])
+            return final
+        if tid:
+            ranges = self._tr_synced_ranges.get(tid, None)
+            if ranges == None:
+                ranges = {}
+                self._tr_synced_ranges[tid]=ranges
+            m_ranges = ranges.get(metric, None)
+            if m_ranges == None:
+                m_ranges = []
+                m_ranges.append({'t':t,'its':its,'ets':ets})
+                ranges[metric] = m_ranges
             else:
-                new_reqs.past_delta = self._metric_reqs[guri].past_delta
-            if reqs.past_count != None and self._metric_reqs[guri].past_count != None:
-                new_reqs.past_count = reqs.past_count if reqs.past_count > self._metric_reqs[guri].past_count else self._metric_reqs[guri].past_count
-            elif reqs.past_count != None:
-                new_reqs.past_count = reqs.past_count
+                new_range = {'t':t,'its':its,'ets':ets}
+                new_ranges = add_new_range(new_range, m_ranges)
+                ranges[metric] = new_ranges
+        elif metric in self._hooked:
+            ranges = self._synced_ranges.get(metric, [])
+            new_range = {'t':t, 'its':its, 'ets':ets}
+            new_ranges = add_new_range(new_range, ranges)
+            self._synced_ranges[metric] = new_ranges
+
+    def _get_metric_data(self, metric, its, ets, count):
+        tr = asyncio.Task.current_task().get_tr()
+        if tr:
+            # get transaction dataframe if exists
+            tid = tr.tid
+            tr_dfs = self._tr_dfs.get(tid, None)
+            if tr_dfs == None:
+                tr_df = None
             else:
-                new_reqs.past_count = self._metric_reqs[guri].past_count
-            self._metric_reqs[guri] = new_reqs
+                tr_df = tr_dfs.get(metric,None)
+        else:
+            tr_df = None
+        df = self._dfs.get(metric, None)
+        have_df, have_tr_df = isinstance(df, pd.DataFrame), isinstance(tr_df, pd.DataFrame)
+        if have_df and have_tr_df:
+            df = df[df.t.between(its,ets)][df.index<=tr.tm][['t','value']]
+            tr_df = tr_df[tr_df.t.between(its,ets)][['t','value']]
+            # in concat, tr_df at the end, because its index will always be higher. No need to sort it.
+            join_df = pd.concat([df,tr_df])
+        elif have_df:
+            join_df = df[df.t.between(its,ets)][['t','value']]
+        elif have_tr_df:
+            join_df = tr_df[tr_df.t.between(its,ets)][['t','value']]
+        else:
+            return None
+        if join_df.empty:
+            return None
+        else:
+            s = pd.Series(index=join_df.t, data=join_df.value.values)
+            s = s[~s.index.duplicated(keep='last')].sort_index()
+            s.name = metric
+            if count != None:
+                return s.iloc[:-count]
+            return s
+
+    async def hook(self, metric):
+        result = await prproc.hook_to_metric(metric)
+        if result['hooked']:
+            self._hooked.add(metric)
+            if result['exists']:
+                #sync future
+                now = timeuuid.TimeUUID()
+                await self.get(metric, start=now, end=timeuuid.MAX_TIMEUUID, count=200)
+            else:
+                self._add_synced_range(metric, t=time.monotonic(), its=timeuuid.MIN_TIMEUUID, ets=timeuuid.MAX_TIMEUUID)
+        return result
+
+    def is_in(self, metric, t, value):
+        ''' Returns False if tuple (metric,t,value) is not found. Only checks the last value '''
+        if not metric in self._dfs:
+            return False
+        df = self._dfs[metric]
+        if not t in df.t.values:
+            return False
+        else:
+            if isinstance(value, decimal.Decimal):
+                tmp_value = int(value) if value%1 == 0 else float(value)
+            else:
+                tmp_value = value
+            smpls = df[df.t == t]
+            if not smpls.value.values[-1] == tmp_value:
+                return False
         return True
 
-    def get_metric_data_reqs(self, metric):
-        guri = uri.get_global_uri(metric, owner=self.owner)
-        try:
-            return self._metric_reqs[guri]
-        except KeyError:
-            return None
+    def has_updates(self, metric, t, tm):
+        ''' Returns True if tuple (metric,t) has newer rows than tm '''
+        if not metric in self._dfs:
+            return False
+        df = self._dfs[metric]
+        if not t in df.t.values:
+            return False
+        smpls = df[df.t == t]
+        if not smpls[smpls.index > tm].empty:
+            return True
+        return False
 
-    def get_serie(self, metric, ets=None, its=None, count=None):
-        guri = uri.get_global_uri(metric, owner=self.owner)
-        try:
-            serie = self._series[guri]
-            if not ets:
-                d = serie.copy(deep=True)
-            elif its:
-                d = serie[its:ets].copy(deep=True)
-            elif count:
-                d = serie[:ets].tail(count).copy(deep=True)
-            else:
-                d = serie[:ets].tail(1).copy(deep=True)
-            d.name = metric
-            return d
-        except KeyError:
-            serie = pd.Series()
-            serie.name = metric
-            return serie
+    async def _tr_commit(self, tr):
+        i_samples = []
+        g_samples = []
+        for metric, df in self._tr_dfs.get(tr.tid, {}).items():
+            i_smpls = df[df.op == 'i']
+            i_smpls = i_smpls[~i_smpls.t.duplicated(keep='last')]
+            for index, row in i_smpls.iterrows():
+                i_samples.append(Sample(metric=metric, t=row.t, value=row.value_orig))
+            g_smpls = df[df['op'] == 'g']
+            g_smpls = g_smpls[~g_smpls.t.duplicated(keep='last')]
+            if metric in self._hooked:
+                for index, row in g_smpls.iterrows():
+                    g_samples.append((index,Sample(metric=metric, t=row.t, value=row.value)))
+        for t,sample in g_samples:
+            self._store(metric=sample.metric, t=sample.t, value=sample.value,tm=index)
+        for metric, ranges in self._tr_synced_ranges.get(tr.tid, {}).items():
+            if metric in self._hooked:
+                for r in ranges:
+                    self._add_synced_range(metric, r['t'], r['its'], r['ets'])
+        if len(i_samples) > 0:
+            await prproc.send_samples(i_samples)
+
+    def _tr_discard(self, tr):
+        self._tr_dfs.pop(tr.tid, None)
+        self._tr_synced_ranges.pop(tr.tid, None)
 
