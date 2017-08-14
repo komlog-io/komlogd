@@ -1,8 +1,7 @@
 import asyncio
-import dateutil.tz
 import sys
-import pandas as pd
 from komlogd.api import session
+from komlogd.api.common.timeuuid import TimeUUID
 from komlogd.api.model.metrics import Datasource, Sample
 from komlogd.api.protocol.processing import procedure as prproc
 from komlogd.base import crypto, config, logging, exceptions
@@ -25,9 +24,8 @@ async def start_komlog_session():
     await KomlogSession.join()
 
 async def start_komlogd_stdin_mode(uri):
-    now = pd.Timestamp('now', tz=dateutil.tz.tzlocal())
     data = sys.stdin.read()
-    sample = Sample(metric=Datasource(uri), ts=now, data=data)
+    sample = Sample(metric=Datasource(uri, session=KomlogSession), t=TimeUUID(), value=data)
     await KomlogSession.login()
     result = await prproc.send_samples([sample])
     if not result['success']:
