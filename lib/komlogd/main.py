@@ -4,18 +4,21 @@ Main application
 
 '''
 
-import asyncio
 import os
 import sys
 import signal
+import asyncio
+import argparse
 import functools
 import traceback
 from stat import S_ISFIFO, S_ISREG
-from komlogd.base import config, logging
-from komlogd.transfer_methods import main as tfmain
-from komlogd.web import main as webmain
+from komlogd.api.model import transactions
+from komlogd.base import config, logging, packages, session
 
-app = None
+if not sys.platform == 'win32':
+    loop = asyncio.get_event_loop()
+    for signame in ('SIGINT', 'SIGTERM'):
+        loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(_signal_handler(signame)))
 
 async def _signal_handler(signame):
     logging.logger.info(signame+' detected.')
@@ -24,9 +27,11 @@ async def _signal_handler(signame):
 
 class Application:
 
-    def __init__(self, config_file, uri):
+    def __init__(self, config_file, uri, venv):
         self.config_file = config_file
         self.uri = uri
+        self.venv = venv
+        self.venvs = []
         self._input_detected = True if S_ISFIFO(os.fstat(0).st_mode) or S_ISREG(os.fstat(0).st_mode) else False
         self._stdin_mode = True if uri else False
         try:
@@ -37,9 +42,7 @@ class Application:
                     raise RuntimeError('uri parameter found, but no input detected')
                 else:
                     raise RuntimeError('stdin data detected, but no uri parameter found')
-            webmain.initialize_komlog_session()
-            if not self._stdin_mode:
-                tfmain.load_transfer_methods_files()
+            self.session = session.initialize_komlog_session()
         except Exception as e:
             sys.stderr.write('Error initializing komlogd.\n')
             if logging.logger is not None and len(logging.logger.handlers)>0:
@@ -56,25 +59,40 @@ class Application:
     async def start(self):
         logging.logger.debug('Starting komlogd.')
         if self._stdin_mode:
-            await webmain.start_komlogd_stdin_mode(uri=self.uri)
+            await session.send_stdin(self.session, uri=self.uri)
         else:
-            await webmain.start_komlog_session()
+            await self.session.login()
+            if self.venv == None:
+                venvs = packages.create_venvs()
+                for env in venvs:
+                    env['config'] = self.config_file
+                    p = packages.boot_venv(env)
+                    env['proc'] = p
+                    self.venvs.append(env)
+            else:
+                packages.load_venv_packages(self.venv)
+                await packages.load_entry_points()
+            logging.logger.debug('Initialization done, joining session')
+            await self.session.join()
 
     async def stop(self):
         logging.logger.debug('Stopping komlogd.')
-        await webmain.stop_komlog_session()
+        await self.session.close()
 
-if sys.platform == 'win32':
-    loop = asyncio.ProactorEventLoop()
-    asyncio.set_event_loop(loop)
-else:
-    loop = asyncio.get_event_loop()
-    for signame in ('SIGINT', 'SIGTERM'):
-        loop.add_signal_handler(getattr(signal, signame), lambda: asyncio.ensure_future(_signal_handler(signame)))
+app = None
 
-def start_application(config_file=None, uri=None):
+def menu():
+    parser = argparse.ArgumentParser(description='Komlog agent')
+    parser.add_argument('-c','--config', required=False, help='Indicates the configuration file to use. Must be the absolute file path', default=config.get_default_config_file())
+    parser.add_argument('-u','--uri', required=False, help='Uri to upload data to', default=None)
+    parser.add_argument('-v', '--venv', required=False, help='boot virtualenv')
+    args = parser.parse_args()
+    return args
+
+def main():
     global app
-    app = Application(config_file=config_file, uri=uri)
+    args = menu()
+    app = Application(config_file=args.config, uri=args.uri, venv=args.venv)
     try:
         loop.run_until_complete(app.start())
     except Exception as e:

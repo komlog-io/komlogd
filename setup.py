@@ -20,9 +20,11 @@ setup(
     package_dir={ '': 'lib' },
     packages = find_packages('lib'),
     test_suite = 'komlogd',
-    scripts=[
-       'bin/komlogd',
-    ],
+    entry_points = {
+        'console_scripts': [
+            'komlogd = komlogd.main:main'
+        ],
+    },
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
