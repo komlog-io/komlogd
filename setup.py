@@ -2,7 +2,7 @@ import sys
 import unittest
 from setuptools import setup, find_packages
 
-version = '0.7.1'
+exec(open('lib/komlogd/version.py').read())
 
 if not sys.version_info[0] == 3 and not sys.version_info[1] >= 5:
     sys.exit("Sorry, Python 3.5 or greater required.")
@@ -10,7 +10,7 @@ if not sys.version_info[0] == 3 and not sys.version_info[1] >= 5:
 
 setup(
     name='komlogd',
-    version=version,
+    version=__version__,
     description='Komlog agent',
     author='komlog Team',
     author_email='hello@komlog.io',
