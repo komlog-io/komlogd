@@ -1,6 +1,7 @@
 import asyncio
 import uuid
 import time
+import sys
 from komlogd.api.common import logging, exceptions
 
 
@@ -50,4 +51,13 @@ class Transaction:
 
 loop = asyncio.get_event_loop()
 loop.set_task_factory(lambda loop, coro: TransactionTask(coro, loop=loop))
+
+if sys.platform == 'win32':
+    loop = asyncio.ProactorEventLoop()
+    loop.set_task_factory(lambda loop, coro: TransactionTask(coro, loop=loop))
+    asyncio.set_event_loop(loop)
+else:
+    loop = asyncio.get_event_loop()
+    loop.set_task_factory(lambda loop, coro: TransactionTask(coro, loop=loop))
+
 
