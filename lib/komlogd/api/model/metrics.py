@@ -1,7 +1,6 @@
 import decimal
 import uuid
 import pandas as pd
-import weakref
 from copy import deepcopy
 from enum import Enum, unique
 from komlogd.api.common import exceptions
@@ -84,7 +83,7 @@ class Metric:
             if session is None:
                 raise exceptions.SessionNotFoundException('No session found')
             else:
-                self._session = weakref.proxy(session)
+                self._session = session
         return self._session
 
     async def get(self, *args, **kwargs):

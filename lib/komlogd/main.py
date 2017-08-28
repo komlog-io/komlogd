@@ -70,8 +70,9 @@ class Application:
                     env['proc'] = p
                     self.venvs.append(env)
             else:
-                packages.load_venv_packages(self.venv)
-                await packages.load_entry_points()
+                if not (packages.load_venv_packages(self.venv) and await packages.load_entry_points()):
+                    logging.logger.error('Packages load failed. Exiting virtualenv '+self.venv)
+                    return await self.stop()
             logging.logger.debug('Initialization done, joining session')
             await self.session.join()
 

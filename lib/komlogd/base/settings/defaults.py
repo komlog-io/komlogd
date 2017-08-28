@@ -14,4 +14,8 @@ LOG_BACKUP_COUNT=3
 LOG_FORMAT='%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s'
 RSA_PRIV_KEY = 'key.priv'
 RSA_PUB_KEY = 'key.pub'
+PACKAGES_HOME = '.venvs/'
+PACKAGES_VENV = 'default'
+PACKAGES_ISOLATED = 'isolated'
+PACKAGES_ENTRY_POINT = 'komlogd.package'
 

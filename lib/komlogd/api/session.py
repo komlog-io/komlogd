@@ -157,7 +157,6 @@ class KomlogSession:
                         break
                     else:
                         await self._q_msg_workers.push(msg)
-                        self.store.run_maintenance()
             except Exception:
                 ex_info=traceback.format_exc().splitlines()
                 for line in ex_info:
@@ -236,7 +235,7 @@ class KomlogSession:
         else:
             fut = self._mark_message_undone(message.seq)
             try:
-                result = asyncio.wait_for(fut, timeout)
+                result = await asyncio.wait_for(fut, timeout)
                 return result
             except asyncio.TimeoutError:
                 return None
