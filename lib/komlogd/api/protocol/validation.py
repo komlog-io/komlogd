@@ -86,15 +86,9 @@ def validate_dp_value(value):
             raise TypeError('value not a number')
 
 def is_message_sequence(value):
-    if not (isinstance(value,str) and len(value)==20):
-        return False
-    try:
-        s=uuid.UUID(value+'A'*12)
-        if s.version == 1:
-            return True
-        else:
-            return False
-    except ValueError:
+    if isinstance(value,timeuuid.TimeUUID) and value.version == 1:
+        return True
+    else:
         return False
 
 def is_local_uri(uri):

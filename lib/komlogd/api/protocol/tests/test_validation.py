@@ -3,7 +3,7 @@ import decimal
 import pandas as pd
 import datetime
 import uuid
-from komlogd.api.common import crypto
+from komlogd.api.common import crypto, timeuuid
 from komlogd.api.protocol import validation
 from komlogd.api.model.metrics import Metrics
 
@@ -386,10 +386,12 @@ class ApiModelValidationTest(unittest.TestCase):
             ' 32\n',
             '32\n',
             '1'*2**7+'1',
+            timeuuid.TimeUUID().hex,
             uuid.uuid1(),
             uuid.uuid1().hex,
             uuid.uuid4().hex[0:20],
             uuid.uuid1().hex[0:10],
+            uuid.uuid1().hex[0:20],
             uuid.uuid4(),
             {'set'},
             {'a':'dict'},
@@ -404,7 +406,7 @@ class ApiModelValidationTest(unittest.TestCase):
     def test_is_message_sequence_success(self):
         ''' is_message_sequence should return False if param is no a valid sequence '''
         params = [
-            uuid.uuid1().hex[0:20],
+            timeuuid.TimeUUID(),
         ]
         for param in params:
             self.assertTrue(validation.is_message_sequence(param))

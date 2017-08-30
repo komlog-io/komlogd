@@ -157,7 +157,7 @@ class ApiProtocolProcessingMessageTest(unittest.TestCase):
         msg = messages.SendDataInterval(uri, m_type, start, end, data)
         self.assertIsNone(prmsg.process_message_send_data_interval(msg, session))
         for d in data:
-            smp = Sample(Datapoint(uri,session),TimeUUID(string=d[0]),d[1])
+            smp = Sample(Datapoint(uri,session),TimeUUID(s=d[0]),d[1])
             self.assertTrue(session.store.is_in(smp.metric, smp.t, smp.value))
         sessionIndex.unregister_session(session.sid)
 
@@ -176,7 +176,7 @@ class ApiProtocolProcessingMessageTest(unittest.TestCase):
         msg = messages.SendDataInterval(uri, m_type, start, end, data)
         self.assertIsNone(prmsg.process_message_send_data_interval(msg, session))
         for d in data:
-            smp = Sample(Datasource(uri,session),TimeUUID(string=d[0]),d[1])
+            smp = Sample(Datasource(uri,session),TimeUUID(s=d[0]),d[1])
             self.assertTrue(session.store.is_in(smp.metric, smp.t, smp.value))
         sessionIndex.unregister_session(session.sid)
 

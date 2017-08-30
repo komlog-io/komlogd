@@ -6,9 +6,9 @@ import datetime
 
 class TimeUUID(uuid.UUID):
 
-    def __init__(self, t=None, string=None, random=True, highest=False, lowest=False):
-        if string != None:
-            u = uuid.UUID(string)
+    def __init__(self, t=None, s=None, random=True, highest=False, lowest=False):
+        if s != None:
+            u = uuid.UUID(s)
             if u.version == 1:
                 super().__init__(
                     fields=u.fields,
@@ -106,6 +106,6 @@ class TimeUUID(uuid.UUID):
         return  datetime.datetime.fromtimestamp(self.timestamp, tz=datetime.timezone.utc)
 
 
-MIN_TIMEUUID = TimeUUID(string='00000000-0000-1000-8080-808080808080')
-MAX_TIMEUUID = TimeUUID(string='ffffffff-ffff-1fff-bf7f-7f7f7f7f7f7f')
+MIN_TIMEUUID = TimeUUID(s='00000000-0000-1000-8080-808080808080')
+MAX_TIMEUUID = TimeUUID(s='ffffffff-ffff-1fff-bf7f-7f7f7f7f7f7f')
 

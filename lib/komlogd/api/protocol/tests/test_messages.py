@@ -117,7 +117,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         irt=uuid.uuid1()
         with self.assertRaises(TypeError) as cm:
             msg=messages.SendDsData(uri=uri, t=t, content=content, irt=irt)
-        self.assertEqual(str(cm.exception),'Invalid irt') 
+        self.assertEqual(str(cm.exception),'Invalid irt')
 
     def test_SendDsData_success(self):
         ''' SendDsData creation should succeed if parameters are valid '''
@@ -132,7 +132,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         self.assertEqual(msg.t,t)
         self.assertEqual(msg.content,content)
         self.assertEqual(msg.irt,None)
-        self.assertEqual(len(msg.seq),20)
+        self.assertTrue(isinstance(msg.seq, TimeUUID))
 
     def test_SendDsData_failure_cannot_modify_sequence(self):
         ''' an exceptions should be raised if we try to modify a SendDsData object sequence param'''
@@ -147,7 +147,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         self.assertEqual(msg.t,t)
         self.assertEqual(msg.content,content)
         with self.assertRaises(TypeError) as cm:
-            msg.seq=uuid.uuid1().hex[0:20]
+            msg.seq=TimeUUID()
         self.assertEqual(str(cm.exception), 'Sequence cannot be modified')
 
     def test_SendDsData_to_dict_success(self):
@@ -161,7 +161,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             msg.to_dict(),{
                 'v':messages.KomlogMessage._version_,
                 'action':messages.Actions.SEND_DS_DATA.value,
-                'seq':msg.seq,
+                'seq':msg.seq.hex,
                 'irt':None,
                 'payload':
                     {'uri':uri,'t':t.hex,'content':content}
@@ -225,7 +225,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         self.assertEqual(msg.t,t)
         self.assertEqual(msg.content,decimal.Decimal(content))
         self.assertEqual(msg.irt,None)
-        self.assertEqual(len(msg.seq),20)
+        self.assertTrue(isinstance(msg.seq,TimeUUID))
 
     def test_SendDpData_to_dict_success(self):
         ''' SendDpData should return a valid dict representation of the object '''
@@ -238,7 +238,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             msg.to_dict(),{
                 'v':messages.KomlogMessage._version_,
                 'action':messages.Actions.SEND_DP_DATA.value,
-                'seq':msg.seq,
+                'seq':msg.seq.hex,
                 'irt':None,
                 'payload':
                     {'uri':uri,'t':t.hex,'content':str(content)}
@@ -358,7 +358,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         self.assertEqual(sorted(msg.uris, key=lambda x: x['uri']), sorted(message_uris, key=lambda x: x['uri']))
         self.assertEqual(msg.t,t)
         self.assertEqual(msg.irt,None)
-        self.assertEqual(len(msg.seq),20)
+        self.assertTrue(isinstance(msg.seq,TimeUUID))
 
     def test_SendMultiData_success_extra_uris_fields_not_propagated(self):
         ''' SendMultiData creation should succeed and non standard uris keys should not be propagated '''
@@ -378,7 +378,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         self.assertEqual(sorted(msg.uris, key=lambda x:x['uri']), sorted(standard_uris, key=lambda x: x['uri']))
         self.assertEqual(msg.t,t)
         self.assertEqual(msg.irt,None)
-        self.assertEqual(len(msg.seq),20)
+        self.assertTrue(isinstance(msg.seq,TimeUUID))
 
     def test_SendMultiData_to_dict_success(self):
         ''' SendMultiData should return a valid dict representation of the object '''
@@ -400,7 +400,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             dict_msg,{
                 'v':messages.KomlogMessage._version_,
                 'action':messages.Actions.SEND_MULTI_DATA.value,
-                'seq':msg.seq,
+                'seq':msg.seq.hex,
                 'irt':None,
                 'payload':
                     {'uris':dict_uris,'t':t.hex}
@@ -423,8 +423,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         ]
         data={'action':messages.Actions.SEND_MULTI_DATA.value,'payload':
             {'uris':uris,'t':t.hex},
-            'seq':uuid.uuid1().hex[0:20],
-            'irt':uuid.uuid1().hex[0:20],
+            'seq':TimeUUID(),
+            'irt':TimeUUID(),
         }
         with self.assertRaises(TypeError) as cm:
             msg=messages.SendMultiData.load_from_dict(data)
@@ -439,8 +439,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         ]
         data={'v':messages.KomlogMessage._version_, 'payload':
             {'uris':uris,'t':t.hex},
-            'seq':uuid.uuid1().hex[0:20],
-            'irt':uuid.uuid1().hex[0:20],
+            'seq':TimeUUID(),
+            'irt':TimeUUID(),
         }
         with self.assertRaises(TypeError) as cm:
             msg=messages.SendMultiData.load_from_dict(data)
@@ -455,7 +455,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         ]
         data={'v':messages.KomlogMessage._version_, 'action':messages.Actions.SEND_MULTI_DATA.value,
             'payload': {'uris':uris,'t':t.hex},
-            'irt':uuid.uuid1().hex[0:20],
+            'irt':TimeUUID(),
         }
         with self.assertRaises(TypeError) as cm:
             msg=messages.SendMultiData.load_from_dict(data)
@@ -470,7 +470,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         ]
         data={'v':messages.KomlogMessage._version_, 'action':messages.Actions.SEND_MULTI_DATA.value,
             'payload': {'uris':uris,'t':t.hex},
-            'seq':uuid.uuid1().hex[0:20],
+            'seq':TimeUUID(),
         }
         with self.assertRaises(TypeError) as cm:
             msg=messages.SendMultiData.load_from_dict(data)
@@ -484,8 +484,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             {'uri':'uri.ds','content':'content','type':Metrics.DATASOURCE.value},
         ]
         data={'v':messages.KomlogMessage._version_, 'action':messages.Actions.SEND_MULTI_DATA.value,
-            'seq':uuid.uuid1().hex[0:20],
-            'irt':uuid.uuid1().hex[0:20],
+            'seq':TimeUUID(),
+            'irt':TimeUUID(),
         }
         with self.assertRaises(TypeError) as cm:
             msg=messages.SendMultiData.load_from_dict(data)
@@ -500,8 +500,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         ]
         data={'v':'a', 'action':messages.Actions.SEND_MULTI_DATA.value,'payload':
             {'uris':uris,'t':t.hex},
-            'seq':uuid.uuid1().hex[0:20],
-            'irt':uuid.uuid1().hex[0:20],
+            'seq':TimeUUID(),
+            'irt':TimeUUID(),
         }
         with self.assertRaises(TypeError) as cm:
             msg=messages.SendMultiData.load_from_dict(data)
@@ -516,8 +516,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         ]
         data={'v':messages.KomlogMessage._version_, 'action':messages.Actions.SEND_DS_DATA.value,'payload':
             {'uris':uris,'t':t.hex},
-            'seq':uuid.uuid1().hex[0:20],
-            'irt':uuid.uuid1().hex[0:20],
+            'seq':TimeUUID(),
+            'irt':TimeUUID(),
         }
         with self.assertRaises(TypeError) as cm:
             msg=messages.SendMultiData.load_from_dict(data)
@@ -532,8 +532,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         ]
         data={'v':messages.KomlogMessage._version_, 'action':messages.Actions.SEND_MULTI_DATA.value,'payload':
             [{'uris':uris,'t':t.hex},],
-            'seq':uuid.uuid1().hex[0:20],
-            'irt':uuid.uuid1().hex[0:20],
+            'seq':TimeUUID(),
+            'irt':TimeUUID(),
         }
         with self.assertRaises(TypeError) as cm:
             msg=messages.SendMultiData.load_from_dict(data)
@@ -548,8 +548,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         ]
         data={'v':messages.KomlogMessage._version_, 'action':messages.Actions.SEND_MULTI_DATA.value,'payload':
             {'uris':uris},
-            'seq':uuid.uuid1().hex[0:20],
-            'irt':uuid.uuid1().hex[0:20],
+            'seq':TimeUUID(),
+            'irt':TimeUUID(),
         }
         with self.assertRaises(TypeError) as cm:
             msg=messages.SendMultiData.load_from_dict(data)
@@ -564,8 +564,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         ]
         data={'v':messages.KomlogMessage._version_, 'action':messages.Actions.SEND_MULTI_DATA.value,'payload':
             {'t':t.hex},
-            'seq':uuid.uuid1().hex[0:20],
-            'irt':uuid.uuid1().hex[0:20],
+            'seq':TimeUUID(),
+            'irt':TimeUUID(),
         }
         with self.assertRaises(TypeError) as cm:
             msg=messages.SendMultiData.load_from_dict(data)
@@ -580,8 +580,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         ]
         data={'v':messages.KomlogMessage._version_, 'action':messages.Actions.SEND_MULTI_DATA.value,'payload':
             {'uris':uris,'t':'1'},
-            'seq':uuid.uuid1().hex[0:20],
-            'irt':uuid.uuid1().hex[0:20],
+            'seq':TimeUUID(),
+            'irt':TimeUUID(),
         }
         with self.assertRaises(ValueError) as cm:
             msg=messages.SendMultiData.load_from_dict(data)
@@ -595,8 +595,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         ]
         data={'v':messages.KomlogMessage._version_, 'action':messages.Actions.SEND_MULTI_DATA.value,'payload':
             {'uris':uris,'t':t.hex},
-            'seq':uuid.uuid1().hex[0:20],
-            'irt':uuid.uuid1().hex[0:20],
+            'seq':TimeUUID().hex,
+            'irt':TimeUUID().hex,
         }
         with self.assertRaises(TypeError) as cm:
             msg=messages.SendMultiData.load_from_dict(data)
@@ -612,11 +612,11 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         data={'v':messages.KomlogMessage._version_, 'action':messages.Actions.SEND_MULTI_DATA.value,'payload':
             {'uris':uris,'t':t.hex},
             'seq':uuid.uuid1().hex[0:10],
-            'irt':uuid.uuid1().hex[0:20],
+            'irt':TimeUUID().hex,
         }
-        with self.assertRaises(TypeError) as cm:
+        with self.assertRaises(ValueError) as cm:
             msg=messages.SendMultiData.load_from_dict(data)
-        self.assertEqual(str(cm.exception), 'Invalid sequence')
+        self.assertEqual(str(cm.exception), 'badly formed hexadecimal UUID string')
 
     def test_SendMultiData_load_from_dict_failure_invalid_irt(self):
         ''' SendMultiData.load_from_dict should fail if irt is invalid '''
@@ -627,12 +627,12 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         ]
         data={'v':messages.KomlogMessage._version_, 'action':messages.Actions.SEND_MULTI_DATA.value,'payload':
             {'uris':uris,'t':t.hex},
-            'seq':uuid.uuid1().hex[0:20],
+            'seq':TimeUUID().hex,
             'irt':uuid.uuid1().hex[0:10],
         }
-        with self.assertRaises(TypeError) as cm:
+        with self.assertRaises(ValueError) as cm:
             msg=messages.SendMultiData.load_from_dict(data)
-        self.assertEqual(str(cm.exception), 'Invalid irt')
+        self.assertEqual(str(cm.exception), 'badly formed hexadecimal UUID string')
 
     def test_SendMultiData_load_from_dict_success(self):
         ''' SendMultiData.load_from_dict should succeed '''
@@ -647,14 +647,14 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         ]
         data={'v':messages.KomlogMessage._version_, 'action':messages.Actions.SEND_MULTI_DATA.value,'payload':
             {'uris':uris,'t':t.hex},
-            'seq':uuid.uuid1().hex[0:20],
-            'irt':uuid.uuid1().hex[0:20],
+            'seq':TimeUUID().hex,
+            'irt':TimeUUID().hex,
         }
         msg=messages.SendMultiData.load_from_dict(data)
         self.assertEqual(sorted(msg.uris, key=lambda x: x['uri']), sorted(obj_uris, key=lambda x: x['uri']))
         self.assertEqual(msg.t, t)
-        self.assertEqual(msg.seq, data['seq'])
-        self.assertEqual(msg.irt, data['irt'])
+        self.assertEqual(msg.seq.hex, data['seq'])
+        self.assertEqual(msg.irt.hex, data['irt'])
         self.assertEqual(msg.v, messages.KomlogMessage._version_)
         self.assertEqual(msg.action, messages.Actions.SEND_MULTI_DATA)
 
@@ -682,7 +682,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
     def test_HookToUri_failure_invalid_seq(self):
         ''' HookToUri creation should fail if irt is not valid '''
         uri='valid.uri'
-        seq=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
         irt=1
         with self.assertRaises(TypeError) as cm:
             msg=messages.HookToUri(uri=uri, seq=seq, irt=irt)
@@ -691,7 +691,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
     def test_HookToUri_success(self):
         ''' HookToUri creation should succeed if parameters are valid '''
         uri='uri'
-        seq=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
         irt=None
         msg=messages.HookToUri(uri=uri, seq=seq, irt=irt)
         self.assertTrue(isinstance(msg, messages.HookToUri))
@@ -704,16 +704,16 @@ class ApiProtocolMessagesTest(unittest.TestCase):
     def test_HookToUri_to_dict_success(self):
         ''' HookToUri should return a valid dict representation of the object '''
         uri='uri'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         msg=messages.HookToUri(uri=uri, seq=seq, irt=irt)
         self.assertTrue(isinstance(msg, messages.HookToUri))
         self.assertEqual(
             msg.to_dict(), {
                 'v':messages.KomlogMessage._version_,
                 'action':messages.Actions.HOOK_TO_URI.value,
-                'seq':seq,
-                'irt':irt,
+                'seq':seq.hex,
+                'irt':irt.hex,
                 'payload': {'uri':uri}
             }
         )
@@ -742,7 +742,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
     def test_UnHookFromUri_failure_invalid_irt(self):
         ''' UnHookFromUri creation should fail if irt is not valid '''
         uri='valid.uri'
-        seq=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
         irt=1
         with self.assertRaises(TypeError) as cm:
             msg=messages.UnHookFromUri(uri=uri, seq=seq, irt=irt)
@@ -751,8 +751,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
     def test_UnHookFromUri_success(self):
         ''' UnHookFromUri creation should succeed if parameters are valid '''
         uri='uri'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         msg=messages.UnHookFromUri(uri=uri, seq=seq, irt=irt)
         self.assertTrue(isinstance(msg, messages.UnHookFromUri))
         self.assertEqual(msg.v, messages.KomlogMessage._version_)
@@ -773,7 +773,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             msg.to_dict(),{
                 'v':messages.KomlogMessage._version_,
                 'action':messages.Actions.UNHOOK_FROM_URI.value,
-                'seq':msg.seq,
+                'seq':msg.seq.hex,
                 'irt':irt,
                 'payload': {'uri':uri}
             }
@@ -812,7 +812,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         start = TimeUUID()
         end = TimeUUID()
         seq = uuid.uuid1().hex
-        irt = uuid.uuid1().hex[0:20]
+        irt = TimeUUID()
         with self.assertRaises(TypeError) as cm:
             messages.RequestData(uri=uri, start=start, end=end, seq=seq, irt=irt)
         self.assertEqual(str(cm.exception), 'Invalid sequence')
@@ -822,7 +822,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri='valid.uri'
         start = TimeUUID()
         end = TimeUUID()
-        seq = uuid.uuid1().hex[0:20]
+        seq = TimeUUID()
         irt = uuid.uuid1().hex
         with self.assertRaises(TypeError) as cm:
             messages.RequestData(uri=uri, start=start, end=end, seq=seq, irt=irt)
@@ -833,8 +833,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri='valid.uri'
         start = TimeUUID()
         end = TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         msg=messages.RequestData(uri=uri, start=start, end=end, seq=seq, irt=irt)
         self.assertEqual(msg.uri, uri)
         self.assertEqual(msg.start, start)
@@ -847,8 +847,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri='valid.uri'
         start = TimeUUID()
         end = TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         msg=messages.RequestData(uri=uri, start=start, end=end, seq=seq, irt=irt)
         self.assertEqual(msg.uri, uri)
         self.assertEqual(msg.start, start)
@@ -857,8 +857,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         expected = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.REQUEST_DATA.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1013,7 +1013,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         start = TimeUUID()
         end = TimeUUID()
         seq = uuid.uuid1().hex
-        irt = uuid.uuid1().hex[0:20]
+        irt = TimeUUID()
         data =[
             [TimeUUID().hex,'ds content 323'],
             [TimeUUID().hex,'ds content 3223'],
@@ -1031,7 +1031,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         m_type = Metrics.DATASOURCE
         start = TimeUUID()
         end = TimeUUID()
-        seq = uuid.uuid1().hex[0:20]
+        seq = TimeUUID()
         irt = uuid.uuid1().hex[0:10]
         data =[
             [TimeUUID().hex,'ds content 323'],
@@ -1050,8 +1050,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         m_type = Metrics.DATASOURCE
         start = TimeUUID()
         end = TimeUUID()
-        seq = uuid.uuid1().hex[0:20]
-        irt= uuid.uuid1().hex[0:20]
+        seq = TimeUUID()
+        irt= TimeUUID()
         data =[
             [TimeUUID().hex,'ds content 323'],
             [TimeUUID().hex,'ds content 3223'],
@@ -1066,7 +1066,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         self.assertEqual(msg.end, end)
         self.assertEqual(msg.seq, seq)
         self.assertEqual(msg.irt, irt)
-        self.assertEqual(sorted(msg.data, key=lambda x: x[0]),sorted([(TimeUUID(string=item[0]),item[1]) for item in data], key=lambda x:x[0]))
+        self.assertEqual(sorted(msg.data, key=lambda x: x[0]),sorted([(TimeUUID(s=item[0]),item[1]) for item in data], key=lambda x:x[0]))
 
     def test_SendDataInterval_success_datapoint(self):
         ''' creating a new RequestData instance should succeed '''
@@ -1074,8 +1074,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         m_type = Metrics.DATAPOINT
         start = TimeUUID()
         end = TimeUUID()
-        seq = uuid.uuid1().hex[0:20]
-        irt= uuid.uuid1().hex[0:20]
+        seq = TimeUUID()
+        irt= TimeUUID()
         data =[
             [TimeUUID().hex,'323'],
             [TimeUUID().hex,'3223'],
@@ -1090,15 +1090,15 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         self.assertEqual(msg.end, end)
         self.assertEqual(msg.seq, seq)
         self.assertEqual(msg.irt, irt)
-        self.assertEqual(sorted(msg.data, key=lambda x: x[0]),sorted([(TimeUUID(string=item[0]),decimal.Decimal(item[1])) for item in data], key=lambda x:x[0]))
+        self.assertEqual(sorted(msg.data, key=lambda x: x[0]),sorted([(TimeUUID(s=item[0]),decimal.Decimal(item[1])) for item in data], key=lambda x:x[0]))
 
     def test_SendDataInterval_load_from_dict_failure_invalid_msg_type(self):
         ''' creating a new RequestData from a serialization should fail if serialization is not of type dict '''
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1109,8 +1109,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = [{
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1127,8 +1127,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1139,8 +1139,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'av':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1157,8 +1157,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1169,8 +1169,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':[messages.KomlogMessage._version_],
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1187,8 +1187,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1199,8 +1199,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'the_action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1217,8 +1217,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1229,8 +1229,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.REQUEST_DATA.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1247,8 +1247,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1259,8 +1259,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'the_seq':seq,
-            'irt':irt,
+            'the_seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1278,7 +1278,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         start=TimeUUID()
         end=TimeUUID()
         seq=uuid.uuid1().hex[0:10]
-        irt=uuid.uuid1().hex[0:20]
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1290,7 +1290,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
             'seq':seq,
-            'irt':irt,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1298,17 +1298,17 @@ class ApiProtocolMessagesTest(unittest.TestCase):
                 'data':data
             }
         }
-        with self.assertRaises(TypeError) as cm:
+        with self.assertRaises(ValueError) as cm:
             msg=messages.SendDataInterval.load_from_dict(msg)
-        self.assertEqual(str(cm.exception), 'Invalid sequence')
+        self.assertEqual(str(cm.exception),'badly formed hexadecimal UUID string')
 
     def test_SendDataInterval_load_from_dict_failure_no_irt(self):
         ''' creating a new RequestData from a serialization should fail if msg has no irt'''
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1319,8 +1319,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'th_irt':irt,
+            'seq':seq.hex,
+            'th_irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1337,7 +1337,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
         irt=uuid.uuid1().hex[0:10]
         data =[
             [TimeUUID().hex,'content 323'],
@@ -1349,7 +1349,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
+            'seq':seq.hex,
             'irt':irt,
             'payload':{
                 'uri':uri,
@@ -1358,17 +1358,17 @@ class ApiProtocolMessagesTest(unittest.TestCase):
                 'data':data
             }
         }
-        with self.assertRaises(TypeError) as cm:
+        with self.assertRaises(ValueError) as cm:
             msg=messages.SendDataInterval.load_from_dict(msg)
-        self.assertEqual(str(cm.exception), 'Invalid irt')
+        self.assertEqual(str(cm.exception),'badly formed hexadecimal UUID string')
 
     def test_SendDataInterval_load_from_dict_failure_no_payload(self):
         ''' creating a new RequestData from a serialization should fail if msg has no payload'''
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1379,8 +1379,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'the_payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1397,8 +1397,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1409,8 +1409,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':[{
                 'uri':uri,
                 'start':start.hex,
@@ -1427,8 +1427,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1439,8 +1439,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'ari':uri,
                 'start':start.hex,
@@ -1457,8 +1457,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1469,8 +1469,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':[uri],
                 'start':start.hex,
@@ -1487,8 +1487,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'ari':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1499,8 +1499,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1517,8 +1517,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','taip':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1529,8 +1529,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1547,8 +1547,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1559,8 +1559,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'estart':start.hex,
@@ -1577,8 +1577,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1589,8 +1589,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1607,8 +1607,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1619,8 +1619,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1637,8 +1637,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1649,8 +1649,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         msg = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1667,8 +1667,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         uri={'uri':'valid.uri','type':Metrics.DATASOURCE.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'content 323'],
             [TimeUUID().hex,'content 3223'],
@@ -1679,8 +1679,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1695,15 +1695,15 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         self.assertEqual(msg.m_type, Metrics(uri['type']))
         self.assertEqual(msg.start, start)
         self.assertEqual(msg.end, end)
-        self.assertEqual(sorted(msg.data, key=lambda x:x[0]), sorted([(TimeUUID(string=item[0]),item[1]) for item in data]))
+        self.assertEqual(sorted(msg.data, key=lambda x:x[0]), sorted([(TimeUUID(s=item[0]),item[1]) for item in data]))
 
     def test_SendDataInterval_load_from_dict_success_datapoint(self):
         ''' creating a new SendDataInterval from a serialization should succeed '''
         uri={'uri':'valid.uri','type':Metrics.DATAPOINT.value}
         start=TimeUUID()
         end=TimeUUID()
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         data =[
             [TimeUUID().hex,'323'],
             [TimeUUID().hex,'3223'],
@@ -1714,8 +1714,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DATA_INTERVAL.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'uri':uri,
                 'start':start.hex,
@@ -1730,7 +1730,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         self.assertEqual(msg.m_type, Metrics(uri['type']))
         self.assertEqual(msg.start, start)
         self.assertEqual(msg.end, end)
-        self.assertEqual(sorted(msg.data, key=lambda x:x[0]), sorted([(TimeUUID(string=item[0]),decimal.Decimal(item[1])) for item in data]))
+        self.assertEqual(sorted(msg.data, key=lambda x:x[0]), sorted([(TimeUUID(s=item[0]),decimal.Decimal(item[1])) for item in data]))
 
     def test_GenericResponse_failure_invalid_status(self):
         ''' creating a GenericResponse obj should fail if status is invalid '''
@@ -1781,7 +1781,7 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
         irt=uuid.uuid1().hex
         with self.assertRaises(TypeError) as cm:
             msg=messages.GenericResponse(status=status,error=error,reason=reason,seq=seq,irt=irt)
@@ -1792,8 +1792,8 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         msg=messages.GenericResponse(status=status,error=error,reason=reason,seq=seq,irt=irt)
         self.assertEqual(msg.action, messages.Actions.GENERIC_RESPONSE)
         self.assertEqual(msg.v, messages.KomlogMessage._version_)
@@ -1808,13 +1808,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'the_v':messages.KomlogMessage._version_,
             'action':messages.Actions.GENERIC_RESPONSE.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'status':status,
                 'error':error,
@@ -1830,13 +1830,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'v':'invalid',
             'action':messages.Actions.GENERIC_RESPONSE.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'status':status,
                 'error':error,
@@ -1852,13 +1852,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'v':messages.KomlogMessage._version_,
             'the_action':messages.Actions.GENERIC_RESPONSE.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'status':status,
                 'error':error,
@@ -1874,13 +1874,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.SEND_DS_DATA.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'status':status,
                 'error':error,
@@ -1896,13 +1896,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.GENERIC_RESPONSE.value,
-            'iseq':seq,
-            'irt':irt,
+            'iseq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'status':status,
                 'error':error,
@@ -1919,34 +1919,34 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         error=0
         reason='reason'
         seq=uuid.uuid1().hex[0:10]
-        irt=uuid.uuid1().hex[0:20]
+        irt=TimeUUID()
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.GENERIC_RESPONSE.value,
             'seq':seq,
-            'irt':irt,
+            'irt':irt.hex,
             'payload':{
                 'status':status,
                 'error':error,
                 'reason':reason,
             }
         }
-        with self.assertRaises(TypeError) as cm:
+        with self.assertRaises(ValueError) as cm:
             msg=messages.GenericResponse.load_from_dict(source)
-        self.assertEqual(str(cm.exception),'Invalid sequence')
+        self.assertEqual(str(cm.exception),'badly formed hexadecimal UUID string')
 
     def test_GenericResponse_load_from_dict_failure_no_irt(self):
         ''' creating a new GenericResponse from a serialization should fail if it has no irt '''
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.GENERIC_RESPONSE.value,
-            'seq':seq,
-            'iirt':irt,
+            'seq':seq.hex,
+            'iirt':irt.hex,
             'payload':{
                 'status':status,
                 'error':error,
@@ -1962,12 +1962,12 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
         irt=uuid.uuid1().hex[0:30]
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.GENERIC_RESPONSE.value,
-            'seq':seq,
+            'seq':seq.hex,
             'irt':irt,
             'payload':{
                 'status':status,
@@ -1975,22 +1975,22 @@ class ApiProtocolMessagesTest(unittest.TestCase):
                 'reason':reason,
             }
         }
-        with self.assertRaises(TypeError) as cm:
+        with self.assertRaises(ValueError) as cm:
             msg=messages.GenericResponse.load_from_dict(source)
-        self.assertEqual(str(cm.exception),'Invalid irt')
+        self.assertEqual(str(cm.exception),'badly formed hexadecimal UUID string')
 
     def test_GenericResponse_load_from_dict_failure_no_payload(self):
         ''' creating a new GenericResponse from a serialization should fail if it has no payload  '''
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.GENERIC_RESPONSE.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'the_payload':{
                 'status':status,
                 'error':error,
@@ -2006,13 +2006,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.GENERIC_RESPONSE.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':[{
                 'status':status,
                 'error':error,
@@ -2028,13 +2028,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.GENERIC_RESPONSE.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'the_status':status,
                 'error':error,
@@ -2050,13 +2050,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status='4200'
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.GENERIC_RESPONSE.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'status':status,
                 'error':error,
@@ -2072,13 +2072,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.GENERIC_RESPONSE.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'status':status,
                 'the_error':error,
@@ -2094,13 +2094,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error='0'
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.GENERIC_RESPONSE.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'status':status,
                 'error':error,
@@ -2116,13 +2116,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.GENERIC_RESPONSE.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'status':status,
                 'error':error,
@@ -2138,13 +2138,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error=0
         reason={'reason':'invalid_reason'}
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.GENERIC_RESPONSE.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'status':status,
                 'error':error,
@@ -2160,13 +2160,13 @@ class ApiProtocolMessagesTest(unittest.TestCase):
         status=4200
         error=0
         reason='reason'
-        seq=uuid.uuid1().hex[0:20]
-        irt=uuid.uuid1().hex[0:20]
+        seq=TimeUUID()
+        irt=TimeUUID()
         source = {
             'v':messages.KomlogMessage._version_,
             'action':messages.Actions.GENERIC_RESPONSE.value,
-            'seq':seq,
-            'irt':irt,
+            'seq':seq.hex,
+            'irt':irt.hex,
             'payload':{
                 'status':status,
                 'error':error,

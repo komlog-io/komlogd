@@ -34,9 +34,9 @@ class ApiCommonTimeUUIDTest(unittest.TestCase):
         ''' creating a TimeUUID with a hex uuid1 should succeed '''
         for i in range(1,1000):
             u = uuid.uuid1()
-            t = timeuuid.TimeUUID(string=u.hex)
+            t = timeuuid.TimeUUID(s=u.hex)
             self.assertEqual(t,u)
-            t = timeuuid.TimeUUID(string=str(u))
+            t = timeuuid.TimeUUID(s=str(u))
             self.assertEqual(t,u)
 
     def test_create_timeuuid_with_uuid4_string_should_fail(self):
@@ -44,13 +44,13 @@ class ApiCommonTimeUUIDTest(unittest.TestCase):
         for i in range(1,100):
             u = uuid.uuid4()
             with self.assertRaises(ValueError) as cm:
-                t = timeuuid.TimeUUID(string=u.hex)
+                t = timeuuid.TimeUUID(s=u.hex)
             self.assertEqual(str(cm.exception), 'Invalid UUID type')
         for fn in [uuid.uuid3, uuid.uuid5]:
             for i in range(1,100):
                 u = fn(uuid.NAMESPACE_DNS,str(os.urandom(10)))
                 with self.assertRaises(ValueError) as cm:
-                    t = timeuuid.TimeUUID(string=u.hex)
+                    t = timeuuid.TimeUUID(s=u.hex)
                 self.assertEqual(str(cm.exception), 'Invalid UUID type')
 
     def test_create_timeuuid_with_timestamp_highest(self):
@@ -98,15 +98,15 @@ class ApiCommonTimeUUIDTest(unittest.TestCase):
             t2 = timeuuid.TimeUUID(t=now)
             self.assertTrue(lowest <= t2)
         # prepared tests
-        lowest = timeuuid.TimeUUID(string='00000000-0000-1000-8080-808080808080')
+        lowest = timeuuid.TimeUUID(s='00000000-0000-1000-8080-808080808080')
         comparing_bytes = [
-            timeuuid.TimeUUID(string='00000000-0000-1000-8081-808080808080'),
-            timeuuid.TimeUUID(string='00000000-0000-1000-8080-818080808080'),
-            timeuuid.TimeUUID(string='00000000-0000-1000-8080-808180808080'),
-            timeuuid.TimeUUID(string='00000000-0000-1000-8080-808081808080'),
-            timeuuid.TimeUUID(string='00000000-0000-1000-8080-808080818080'),
-            timeuuid.TimeUUID(string='00000000-0000-1000-8080-808080808180'),
-            timeuuid.TimeUUID(string='00000000-0000-1000-8080-808080808081')
+            timeuuid.TimeUUID(s='00000000-0000-1000-8081-808080808080'),
+            timeuuid.TimeUUID(s='00000000-0000-1000-8080-818080808080'),
+            timeuuid.TimeUUID(s='00000000-0000-1000-8080-808180808080'),
+            timeuuid.TimeUUID(s='00000000-0000-1000-8080-808081808080'),
+            timeuuid.TimeUUID(s='00000000-0000-1000-8080-808080818080'),
+            timeuuid.TimeUUID(s='00000000-0000-1000-8080-808080808180'),
+            timeuuid.TimeUUID(s='00000000-0000-1000-8080-808080808081')
         ]
         for other in comparing_bytes:
             self.assertTrue(lowest < other)
@@ -120,15 +120,15 @@ class ApiCommonTimeUUIDTest(unittest.TestCase):
             t2 = timeuuid.TimeUUID(t=now)
             self.assertTrue(highest >= t2)
         # prepared tests
-        highest = timeuuid.TimeUUID(string='00000000-0000-1000-bfff-7f7f7f7f7f7f')
+        highest = timeuuid.TimeUUID(s='00000000-0000-1000-bfff-7f7f7f7f7f7f')
         comparing_bytes = [
-            timeuuid.TimeUUID(string='00000000-0000-1000-bffe-7f7f7f7f7f7f'),
-            timeuuid.TimeUUID(string='00000000-0000-1000-bfff-7e7f7f7f7f7f'),
-            timeuuid.TimeUUID(string='00000000-0000-1000-bfff-7f7e7f7f7f7f'),
-            timeuuid.TimeUUID(string='00000000-0000-1000-bfff-7f7f7e7f7f7f'),
-            timeuuid.TimeUUID(string='00000000-0000-1000-bfff-7f7f7f7e7f7f'),
-            timeuuid.TimeUUID(string='00000000-0000-1000-bfff-7f7f7f7f7e7f'),
-            timeuuid.TimeUUID(string='00000000-0000-1000-bfff-7f7f7f7f7f7e'),
+            timeuuid.TimeUUID(s='00000000-0000-1000-bffe-7f7f7f7f7f7f'),
+            timeuuid.TimeUUID(s='00000000-0000-1000-bfff-7e7f7f7f7f7f'),
+            timeuuid.TimeUUID(s='00000000-0000-1000-bfff-7f7e7f7f7f7f'),
+            timeuuid.TimeUUID(s='00000000-0000-1000-bfff-7f7f7e7f7f7f'),
+            timeuuid.TimeUUID(s='00000000-0000-1000-bfff-7f7f7f7e7f7f'),
+            timeuuid.TimeUUID(s='00000000-0000-1000-bfff-7f7f7f7f7e7f'),
+            timeuuid.TimeUUID(s='00000000-0000-1000-bfff-7f7f7f7f7f7e'),
         ]
         for other in comparing_bytes:
             self.assertTrue(highest > other)
