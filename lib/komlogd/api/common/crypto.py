@@ -38,7 +38,7 @@ def load_public_key(pubkey_file):
     The key returned is a RSAPublicKey instance.
     '''
     with open(pubkey_file, "rb") as key_file:
-        pubkey = serialization.load_pem_public_key(
+        pubkey = serialization.load_ssh_public_key(
             key_file.read(),
             backend=default_backend()
         )
@@ -49,8 +49,8 @@ def serialize_public_key(key):
     Returns the public key serialization in base64
     '''
     pem = key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
+        encoding=serialization.Encoding.OpenSSH,
+        format=serialization.PublicFormat.OpenSSH
     )
     return b64encode(pem).decode()
 
@@ -121,13 +121,13 @@ def generate_rsa_key(key_size=4096):
 def store_keys(privkey, privkey_file, pubkey_file):
     privkey_serial = privkey.private_bytes(
         encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        format=serialization.PrivateFormat.PKCS8,
         encryption_algorithm=serialization.NoEncryption()
     )
     pubkey = privkey.public_key()
     pubkey_serial = pubkey.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
+        encoding=serialization.Encoding.OpenSSH,
+        format=serialization.PublicFormat.OpenSSH
     )
     with open(privkey_file,'wb') as privkey_out:
         privkey_out.write(privkey_serial)
@@ -142,8 +142,8 @@ def store_keys(privkey, privkey_file, pubkey_file):
 
 def get_printable_pubkey(pubkey):
     pem = pubkey.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
+        encoding=serialization.Encoding.OpenSSH,
+        format=serialization.PublicFormat.OpenSSH
     )
     return pem.decode()
 

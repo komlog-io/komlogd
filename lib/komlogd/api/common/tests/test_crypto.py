@@ -5,6 +5,7 @@ import string
 from base64 import b64encode, b64decode
 from komlogd.api.common import crypto, exceptions
 from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.exceptions import UnsupportedAlgorithm
 
 class ApiCommonCryptoTest(unittest.TestCase):
 
@@ -119,7 +120,7 @@ class ApiCommonCryptoTest(unittest.TestCase):
         privkey=crypto.generate_rsa_key()
         pubkey_generated=privkey.public_key()
         crypto.store_keys(privkey=privkey,privkey_file=privkey_file,pubkey_file=pubkey_file)
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(UnsupportedAlgorithm) as cm:
             loadedkey=crypto.load_public_key(privkey_file)
         os.remove(privkey_file)
         os.remove(pubkey_file)
