@@ -3,8 +3,7 @@ Templates file
 
 '''
 
-TEMPLATE_CONFIG_FILE='''
-#
+TEMPLATE_CONFIG_FILE='''#
 # komlogd configuration file
 #
 # User Info
@@ -12,12 +11,12 @@ TEMPLATE_CONFIG_FILE='''
 #
 # Komlog username. Set it and uncomment the following line:
 #
-# - username: username
+#- username: username
 #
-# komlogd agent private key. Default value showed. Uncomment only if you want to use
+# Agent private key. Default value relative to configuration directory. Uncomment only if you want to use
 # a different private key file.
 #
-# - keyfile: .komlogd/key.priv
+#- keyfile: ./key.priv
 #
 #
 # Packages
@@ -38,10 +37,10 @@ TEMPLATE_CONFIG_FILE='''
 #
 # E.g:
 #
-# - package:
-#     install: --upgrade SomePackage
-#     enabled: yes
-#     venv: my_virtualenv
+#- package:
+#    install: --upgrade SomePackage
+#    enabled: yes
+#    venv: my_virtualenv
 #
 #
 # Logging
@@ -49,13 +48,13 @@ TEMPLATE_CONFIG_FILE='''
 #
 # logging configuration. Default values are indicated:
 #
-# - logging:
-#     level: INFO
-#     rotation: yes
-#     max_bytes: 10000000
-#     backup_count: 3
-#     dirname: log
-#     filename: komlogd.log
+#- logging:
+#    level: INFO
+#    rotation: yes
+#    max_bytes: 10000000
+#    backup_count: 3
+#    dirname: log
+#    filename: komlogd.log
 #
 #
 '''
