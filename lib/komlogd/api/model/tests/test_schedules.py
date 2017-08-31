@@ -65,6 +65,20 @@ class ApiModelSchedulesTest(unittest.TestCase):
         self.assertEqual(sorted(sc.activation_metrics, key= lambda x: x.__hash__()), sorted(expected_metrics, key=lambda x: x.__hash__()))
         self.assertEqual(sc.meets(), False)
 
+    def test_creation_OnUpdateSchedule_success_with_activation_metrics_a_dict_with_metrics(self):
+        ''' creating a OnUpdateSchedule object should succeed and find Metrics if activation_metrics != None '''
+        activation_metrics = {
+            '0':metrics.Datasource('uri_1'),
+            '1':metrics.Datapoint('uri_2'),
+            '2':metrics.Anomaly(metrics.Datasource('uri_3')),
+            '3':metrics.Tag(metrics.Datasource('uri_4'), key='key',value='value')
+        }
+        sc = schedules.OnUpdateSchedule(activation_metrics=activation_metrics)
+        self.assertEqual(sc.exec_on_load, False)
+        expected_metrics = [metrics.Datasource('uri_1'),metrics.Datapoint('uri_2'),metrics.Anomaly(metrics.Datasource('uri_3')), metrics.Tag(metrics.Datasource('uri_4'),key='key',value='value')]
+        self.assertEqual(sorted(sc.activation_metrics, key= lambda x: x.__hash__()), sorted(expected_metrics, key=lambda x: x.__hash__()))
+        self.assertEqual(sc.meets(), False)
+
     def test_creation_CronSchedule_success_with_defaults(self):
         ''' creating a CronSchedule object should succeed. exec_on_load should be False by default '''
         sc = schedules.CronSchedule()

@@ -83,7 +83,7 @@ class transfermethod:
         self.f = decorated
         self._func_params = inspect.signature(f).parameters
         if self.schedule == None:
-            self.schedule = OnUpdateSchedule(activation_metrics = self._func_params)
+            self.schedule = OnUpdateSchedule(activation_metrics = self.f_params)
 
     def __call__(self, f):
         self._decorate_method(f)
@@ -102,8 +102,8 @@ class transfermethod:
         logging.logger.debug('Unbinding transfer method '+self.mid.hex)
         tmIndex.delete_tm(self.mid)
 
-    async def run(self, t, metrics):
-        async with Transaction(t=t) as tr:
+    async def run(self, t, metrics, irt=None):
+        async with Transaction(t=t, irt=irt) as tr:
             try:
                 await TransactionTask(coro=self.f(t=t, metrics=metrics), tr=tr)
             except Exception:

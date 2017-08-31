@@ -19,10 +19,11 @@ class TransactionTask(asyncio.Task):
         return self._tr
 
 class Transaction:
-    def __init__(self, t):
+    def __init__(self, t, irt=None):
         self.tm = time.monotonic()
         self.tid = uuid.uuid4()
         self.t = t
+        self.irt = irt
         self._dirty = set()
 
     async def __aenter__(self):

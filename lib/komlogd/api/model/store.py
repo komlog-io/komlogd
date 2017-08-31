@@ -320,7 +320,7 @@ class MetricStore:
                 for r in ranges:
                     self._add_synced_range(metric, r['t'], r['its'], r['ets'])
         if len(i_samples) > 0:
-            await prproc.send_samples(i_samples)
+            await prproc.send_samples(i_samples, irt=tr.irt)
 
     def _tr_discard(self, tr):
         self._tr_dfs.pop(tr.tid, None)

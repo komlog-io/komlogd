@@ -28,6 +28,7 @@ class TransferMethodsIndex:
         if tm_info:
             logging.logger.debug('enabling tm '+mid.hex)
             try:
+                logging.logger.debug('tm activation metrics: '+str([m.uri for m in tm_info['tm'].schedule.activation_metrics]))
                 for metric in tm_info['tm'].schedule.activation_metrics:
                     result = await metric.session.store.hook(metric=metric)
                     if result['hooked'] == False:
@@ -98,18 +99,23 @@ class TransferMethodsIndex:
         else:
             return None
 
-    def metrics_updated(self, t, metrics):
+    def metrics_updated(self, t, metrics, irt):
         tms = self._get_tms_activated_with(metrics)
         for tm in tms:
             logging.logger.debug('Requesting execution of tm: '+ tm.mid.hex)
-            asyncio.ensure_future(tm.run(t=t, metrics=metrics))
+            asyncio.ensure_future(tm.run(t=t, metrics=metrics, irt=irt))
 
     def _get_tms_activated_with(self, metrics, enabled=True):
         if enabled:
-            items = self._enabled_methods.values()
+            all_tms = [tm_info['tm'] for tm_info in self._enabled_methods.values()]
         else:
-            items = self._disabled_methods.values()
-        tms = list(set([i['tm'] for m in metrics for i in items if m in i['tm'].schedule.activation_metrics]))
+            all_tms = [tm_info['tm'] for tm_info in self._disabled_methods.values()]
+        tms =  []
+        for tm in all_tms:
+            for m in metrics:
+                if m in tm.schedule.activation_metrics:
+                    tms.append(tm)
+                    break
         return tms
 
     def _get_tms_that_meet(self, t, enabled=True):

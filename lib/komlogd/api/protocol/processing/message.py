@@ -16,7 +16,7 @@ def process_message_send_multi_data(msg, session, **kwargs):
         if not session.store.is_in(metric=metric, t=msg.t, value=item['content']):
             session.store.insert(metric, msg.t, item['content'])
             metrics.append(metric)
-    tmIndex.metrics_updated(t=msg.t, metrics=metrics)
+    tmIndex.metrics_updated(t=msg.t, metrics=metrics, irt=msg.seq)
 
 def process_message_send_data_interval(msg, session, **kwargs):
     if msg.m_type == Metrics.DATAPOINT:

@@ -293,7 +293,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         current_task = asyncio.Task.current_task()
         tasks = asyncio.Task.all_tasks()
         self.assertEqual(len(tasks),3) #this task and two enabling tasks
-        tmi.metrics_updated(t=t, metrics=metrics)
+        tmi.metrics_updated(t=t, metrics=metrics, irt=timeuuid.TimeUUID())
         tasks = asyncio.Task.all_tasks()
         self.assertEqual(len(tasks),3) #No new task added
         [task.cancel() for task in asyncio.Task.all_tasks() if task != current_task]
@@ -321,7 +321,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         current_task = asyncio.Task.current_task()
         tasks = asyncio.Task.all_tasks()
         self.assertEqual(len(tasks),3) #this task and two enabling tasks
-        tmi.metrics_updated(t=t, metrics=metrics)
+        tmi.metrics_updated(t=t, metrics=metrics, irt=timeuuid.TimeUUID())
         tasks = asyncio.Task.all_tasks()
         self.assertEqual(len(tasks),4) #One tm activated
         [task.cancel() for task in asyncio.Task.all_tasks() if task != current_task]
@@ -350,7 +350,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         current_task = asyncio.Task.current_task()
         tasks = asyncio.Task.all_tasks()
         self.assertEqual(len(tasks),3) #this task and two enabling tasks
-        tmi.metrics_updated(t=t, metrics=metrics)
+        tmi.metrics_updated(t=t, metrics=metrics, irt=timeuuid.TimeUUID())
         tasks = asyncio.Task.all_tasks()
         self.assertEqual(len(tasks),5) #One tm activated
         [task.cancel() for task in asyncio.Task.all_tasks() if task != current_task]

@@ -8,7 +8,7 @@ from komlogd.api.protocol.codes import Status
 from komlogd.api.model.schedules import OnUpdateSchedule, CronSchedule
 from komlogd.api.model.metrics import Metrics, Datasource, Datapoint, Metric, Sample
 
-async def send_samples(samples):
+async def send_samples(samples, irt=None):
     by_session_samples = {}
     for sample in samples:
         try:
@@ -30,11 +30,11 @@ async def send_samples(samples):
                         'type':smp.metric._m_type_.value,
                         'content':smp.value,
                     })
-                msgs.append(messages.SendMultiData(t=t, uris=uris))
+                msgs.append(messages.SendMultiData(t=t, uris=uris, irt=irt))
             elif isinstance(smpls[0].metric, Datasource):
-                msgs.append(messages.SendDsData(uri=smpls[0].metric.uri, t=t, content=smpls[0].value))
+                msgs.append(messages.SendDsData(uri=smpls[0].metric.uri, t=t, content=smpls[0].value, irt=irt))
             elif isinstance(smpls[0].metric, Datapoint):
-                msgs.append(messages.SendDpData(uri=smpls[0].metric.uri, t=t, content=smpls[0].value))
+                msgs.append(messages.SendDpData(uri=smpls[0].metric.uri, t=t, content=smpls[0].value, irt=irt))
         msgs.sort(key=lambda x: x.t)
         for msg in msgs:
             rsp = await session.send_message(msg)
