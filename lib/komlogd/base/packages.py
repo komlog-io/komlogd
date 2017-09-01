@@ -30,14 +30,23 @@ def install_package(py_exec, pkg):
     cwd = os.path.dirname(py_exec)
     args = [py_exec, 'pip', 'install'] + pkg_args
     logging.logger.info('Installing package '+pkg)
-    result = subprocess.run(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE, cwd=cwd, encoding='utf-8')
+    keys=config.config.get_entries(entryname=options.KOMLOG_KEYFILE)
+    if len(keys) == 0:
+        key_file=os.path.join(config.config.root_dir,defaults.RSA_PRIV_KEY)
+    else:
+        key_file=keys[0]
+    my_env = os.environ.copy()
+    my_env["GIT_SSH_COMMAND"] = "ssh -oStrictHostKeyChecking=no -vvv -i "+key_file
+    result = subprocess.run(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE, cwd=cwd, encoding='utf-8', env=my_env)
     try:
         result.check_returncode()
     except subprocess.CalledProcessError:
         logging.logger.error('Error installing package '+pkg)
+        logging.logger.error(result.stdout)
         logging.logger.error(result.stderr)
         raise
     else:
+        logging.logger.debug(result.stdout)
         logging.logger.info('Package '+pkg+' installed')
 
 def create_venvs():
