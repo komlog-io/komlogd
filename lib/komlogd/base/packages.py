@@ -1,5 +1,4 @@
 import asyncio
-import hashlib
 import importlib
 import os
 import pkg_resources
@@ -12,7 +11,7 @@ import types
 import venv
 from komlogd import __version__
 from komlogd.base import config, logging
-from komlogd.base.settings import defaults, options
+from komlogd.base.settings import defaults
 
 
 class KomlogVEnv(venv.EnvBuilder):
@@ -30,13 +29,8 @@ def install_package(py_exec, pkg):
     cwd = os.path.dirname(py_exec)
     args = [py_exec, 'pip', 'install'] + pkg_args
     logging.logger.info('Installing package '+pkg)
-    keys=config.config.get_entries(entryname=options.KOMLOG_KEYFILE)
-    if len(keys) == 0:
-        key_file=os.path.join(config.config.root_dir,defaults.RSA_PRIV_KEY)
-    else:
-        key_file=keys[0]
     my_env = os.environ.copy()
-    my_env["GIT_SSH_COMMAND"] = "ssh -oStrictHostKeyChecking=no -vvv -i "+key_file
+    my_env["GIT_SSH_COMMAND"] = "ssh -oStrictHostKeyChecking=no -vvv -i "+config.config.key
     result = subprocess.run(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE, cwd=cwd, encoding='utf-8', env=my_env)
     try:
         result.check_returncode()
@@ -50,27 +44,8 @@ def install_package(py_exec, pkg):
         logging.logger.info('Package '+pkg+' installed')
 
 def create_venvs():
-    entries = config.config.get_entries(entryname=options.ENTRY_PACKAGE)
-    config_venvs = set()
-    for i,entry in enumerate(entries):
-        try:
-            pkg = entry[options.PACKAGE_INSTALL]
-            env = entry[options.PACKAGE_VENV]
-            enabled = entry[options.PACKAGE_ENABLED]
-            if pkg and enabled is True:
-                if not env:
-                    config_venvs.add(defaults.PACKAGES_VENV)
-                elif env == defaults.PACKAGES_ISOLATED:
-                    m = hashlib.md5()
-                    m.update((str(i)+pkg).encode('utf-8'))
-                    config_venvs.add(m.hexdigest())
-                else:
-                    config_venvs.add(env)
-        except Exception:
-            logging.logger.error('Error loading package configuration.')
-            ex_info=traceback.format_exc().splitlines()
-            for line in ex_info:
-                logging.logger.error(line)
+    packages = config.config.packages
+    config_venvs = set([pkg['venv'] for pkg in packages if pkg['enabled']])
     virtualenvs_path = os.path.join(config.config.root_dir,defaults.PACKAGES_HOME)
     venvs = []
     for name in config_venvs:
@@ -99,30 +74,11 @@ def boot_venv(info):
     return p
 
 def load_venv_packages(env_name):
-    entries = config.config.get_entries(entryname=options.ENTRY_PACKAGE)
-    venv_pkgs = set()
-    for i,entry in enumerate(entries):
+    packages = config.config.packages
+    cmds = set([pkg['install'] for pkg in packages if pkg['venv'] == env_name])
+    for cmd in cmds:
         try:
-            pkg = entry[options.PACKAGE_INSTALL]
-            env = entry[options.PACKAGE_VENV]
-            enabled = entry[options.PACKAGE_ENABLED]
-            if pkg and enabled == True:
-                if not env:
-                    env = defaults.PACKAGES_VENV
-                elif env == defaults.PACKAGES_ISOLATED:
-                    m = hashlib.md5()
-                    m.update((str(i)+pkg).encode('utf-8'))
-                    env = m.hexdigest()
-                if env == env_name:
-                    venv_pkgs.add(pkg)
-        except Exception:
-            logging.logger.error('Error loading package configuration.')
-            ex_info=traceback.format_exc().splitlines()
-            for line in ex_info:
-                logging.logger.error(line)
-    for pkg in venv_pkgs:
-        try:
-            install_package(sys.executable, pkg)
+            install_package(sys.executable, cmd)
         except subprocess.CalledProcessError:
             return False
     return True
@@ -143,5 +99,7 @@ async def load_entry_points():
             for line in ex_info:
                 logging.logger.error(line)
             return False
+        else:
+            logging.logger.info('entry_point loaded successfully: '+str(ep))
     return True
 

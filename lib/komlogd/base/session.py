@@ -4,18 +4,13 @@ from komlogd.api import session
 from komlogd.api.common.timeuuid import TimeUUID
 from komlogd.api.model.metrics import Datasource, Sample
 from komlogd.api.protocol.processing import procedure as prproc
-from komlogd.base import crypto, config, logging, exceptions
-from komlogd.base.settings import options
+from komlogd.base import crypto, config
 
 
 def initialize_komlog_session():
-    username = config.config.get_entries(entryname=options.KOMLOG_USERNAME)
+    username = config.config.username
     privkey = crypto.get_private_key()
-    if len(username)==0:
-        raise exceptions.BadParametersException('Set username in configuration file.')
-    elif len(username)>1:
-        raise exceptions.BadParametersException('More than one username found in configuration file. Keep only one.')
-    return session.KomlogSession(username=username[0], privkey=privkey)
+    return session.KomlogSession(username=username, privkey=privkey)
 
 async def send_stdin(s, uri):
     data = sys.stdin.read()

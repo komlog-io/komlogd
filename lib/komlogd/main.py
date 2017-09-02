@@ -32,11 +32,12 @@ class Application:
         self.uri = uri
         self.venv = venv
         self.venvs = []
+        self.process_name = venv if venv else 'main'
         self._input_detected = True if S_ISFIFO(os.fstat(0).st_mode) or S_ISREG(os.fstat(0).st_mode) else False
         self._stdin_mode = True if uri else False
         try:
-            config.load_application_config(filename=self.config_file)
-            logging.initialize_logger()
+            config.initialize_config(filename=self.config_file)
+            logging.initialize_logging(self.process_name)
             if self._input_detected != self._stdin_mode:
                 if self._stdin_mode:
                     raise RuntimeError('uri parameter found, but no input detected')
@@ -45,8 +46,9 @@ class Application:
             self.session = session.initialize_komlog_session()
         except Exception as e:
             sys.stderr.write('Error initializing komlogd.\n')
+            sys.stderr.write(str(e)+'\n')
             if logging.logger is not None and len(logging.logger.handlers)>0:
-                sys.stderr.write('See log file: '+logging.logger.handlers[0].baseFilename+'\n')
+                sys.stderr.write('Log info: '+logging.logger.handlers[0].baseFilename+'\n')
                 ex_info=traceback.format_exc().splitlines()
                 for line in ex_info:
                     logging.logger.error(line)
