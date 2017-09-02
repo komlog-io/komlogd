@@ -129,13 +129,11 @@ def store_keys(privkey, privkey_file, pubkey_file):
         encoding=serialization.Encoding.OpenSSH,
         format=serialization.PublicFormat.OpenSSH
     )
-    with open(privkey_file,'wb') as privkey_out:
+    with os.fdopen(os.open(privkey_file, os.O_WRONLY | os.O_CREAT, 0o600), 'wb') as privkey_out:
         privkey_out.write(privkey_serial)
-        privkey_out.close()
     try:
-        with open(pubkey_file,'wb') as pubkey_out:
+        with os.fdopen(os.open(pubkey_file, os.O_WRONLY | os.O_CREAT, 0o644), 'wb') as pubkey_out:
             pubkey_out.write(pubkey_serial)
-            pubkey_out.close()
     except:
         os.remove(privkey_file)
         raise
