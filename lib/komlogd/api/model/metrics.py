@@ -95,8 +95,24 @@ class Metric:
 class Datasource(Metric):
     _m_type_ = Metrics.DATASOURCE
 
-    def __init__(self, uri, session=None):
+    def __init__(self, uri, session=None, supplies=None):
         super().__init__(uri=uri, session=session)
+        self.supplies = supplies
+
+    @property
+    def supplies(self):
+        return self._supplies
+
+    @supplies.setter
+    def supplies(self, uris):
+        if uris is None:
+            self._supplies = None
+        elif isinstance(uris, list):
+            for uri in uris:
+                validation.validate_local_uri(uri)
+            self._supplies = sorted(list(set(uris)))
+        else:
+            raise TypeError('Invalid supplies parameter')
 
 class Datapoint(Metric):
     _m_type_ = Metrics.DATAPOINT

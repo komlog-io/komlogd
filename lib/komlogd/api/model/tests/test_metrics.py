@@ -25,17 +25,69 @@ class ApiModelMetricsTest(unittest.TestCase):
         with self.assertRaises(TypeError) as cm:
             ds = metrics.Datasource(uri=uri)
 
-    def test_Datasource_creation_success(self):
+    def test_Datasource_creation_failure_invalid_supplies_type(self):
+        ''' Datasource creation should fail if supplies is not a list '''
+        uri = 'ds'
+        supplies = {'a':'dict'}
+        with self.assertRaises(TypeError) as cm:
+            ds = metrics.Datasource(uri=uri, supplies=supplies)
+        self.assertEqual(str(cm.exception), 'Invalid supplies parameter')
+
+    def test_Datasource_creation_failure_invalid_supplies_uris_strings(self):
+        ''' Datasource creation should fail if supplies uris are not valid uris '''
+        uri = 'ds'
+        supplies = ['valid.uri',uuid.uuid4()]
+        with self.assertRaises(TypeError) as cm:
+            ds = metrics.Datasource(uri=uri, supplies=supplies)
+        self.assertEqual(str(cm.exception), 'value is not a string: '+str(supplies[1]))
+
+    def test_Datasource_creation_failure_invalid_supplies_uris(self):
+        ''' Datasource creation should fail if supplies uris are not valid uris '''
+        uri = 'ds'
+        supplies = ['valid.uri','invalid uri']
+        with self.assertRaises(TypeError) as cm:
+            ds = metrics.Datasource(uri=uri, supplies=supplies)
+        self.assertEqual(str(cm.exception), 'value is not a valid local uri: invalid uri')
+
+    def test_Datasource_creation_failure_invalid_supplies_uris_not_local_uri(self):
+        ''' Datasource creation should fail if supplies uris are not local uris '''
+        uri = 'ds'
+        supplies = ['valid.uri','global:uri']
+        with self.assertRaises(TypeError) as cm:
+            ds = metrics.Datasource(uri=uri, supplies=supplies)
+        self.assertEqual(str(cm.exception), 'value is not a valid local uri: global:uri')
+
+    def test_Datasource_creation_success_local_uri(self):
         ''' Datasource creation should succeed if no session exists yet '''
         uri = 'ds.uri'
         ds = metrics.Datasource(uri=uri)
         self.assertEqual(ds.uri, uri)
+        self.assertEqual(ds.supplies, None)
+        self.assertEqual(ds._m_type_, metrics.Metrics.DATASOURCE)
+
+    def test_Datasource_creation_success_local_uri_with_supplies_uris(self):
+        ''' Datasource creation should succeed if uri is a valid local uir and supplies are valid local uris '''
+        uri = 'ds.uri'
+        supplies = ['dp1','dp2','dp3','other.dp1','other.dp2','other.dp3']
+        ds = metrics.Datasource(uri=uri, supplies=supplies)
+        self.assertEqual(ds.uri, uri)
+        self.assertEqual(ds.supplies, sorted(supplies))
         self.assertEqual(ds._m_type_, metrics.Metrics.DATASOURCE)
 
     def test_Datasource_creation_success_global_uri(self):
         ''' Datasource creation should succeed if we pass a global uri '''
         uri = 'user:uri'
         ds = metrics.Datasource(uri=uri)
+        self.assertEqual(ds.uri, uri)
+        self.assertEqual(ds.supplies, None)
+        self.assertEqual(ds._m_type_, metrics.Metrics.DATASOURCE)
+
+    def test_Datasource_creation_success_global_uri_with_supplies_uris(self):
+        ''' Datasource creation should succeed if we pass a global uri and valid supplies uris'''
+        uri = 'user:uri'
+        supplies = ['dp1','dp2','dp3','other.dp1','other.dp2','other.dp3']
+        ds = metrics.Datasource(uri=uri, supplies=supplies)
+        self.assertEqual(ds.supplies, sorted(supplies))
         self.assertEqual(ds.uri, uri)
 
     def test_compare_Datasource_local_uri_case_sensitive(self):

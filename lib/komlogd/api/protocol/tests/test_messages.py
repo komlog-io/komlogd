@@ -10,8 +10,9 @@ class ApiProtocolMessagesTest(unittest.TestCase):
 
     def test_actions(self):
         ''' Actions available in this protocol version '''
-        self.assertEqual(len(messages.Actions),8)
+        self.assertEqual(len(messages.Actions),9)
         self.assertEqual(messages.Actions.SEND_DS_DATA.value,'send_ds_data')
+        self.assertEqual(messages.Actions.SEND_DS_INFO.value,'send_ds_info')
         self.assertEqual(messages.Actions.SEND_DP_DATA.value,'send_dp_data')
         self.assertEqual(messages.Actions.SEND_MULTI_DATA.value,'send_multi_data')
         self.assertEqual(messages.Actions.HOOK_TO_URI.value,'hook_to_uri')
@@ -150,6 +151,22 @@ class ApiProtocolMessagesTest(unittest.TestCase):
             msg.seq=TimeUUID()
         self.assertEqual(str(cm.exception), 'Sequence cannot be modified')
 
+    def test_SendDsData_failure_cannot_modify_irt(self):
+        ''' an exception should be raised if we try to modify a SendDsData object irt param'''
+        uri='valid.uri'
+        t = TimeUUID()
+        content='223'
+        msg=messages.SendDsData(uri=uri, t=t, content=content)
+        self.assertTrue(isinstance(msg, messages.SendDsData))
+        self.assertEqual(msg.v, messages.KomlogMessage._version_)
+        self.assertEqual(msg.action, messages.Actions.SEND_DS_DATA)
+        self.assertEqual(msg.uri,uri)
+        self.assertEqual(msg.t,t)
+        self.assertEqual(msg.content,content)
+        with self.assertRaises(TypeError) as cm:
+            msg.irt=TimeUUID()
+        self.assertEqual(str(cm.exception), 'irt cannot be modified')
+
     def test_SendDsData_to_dict_success(self):
         ''' SendDsData should return a valid dict representation of the object '''
         uri='valid.uri'
@@ -165,6 +182,78 @@ class ApiProtocolMessagesTest(unittest.TestCase):
                 'irt':None,
                 'payload':
                     {'uri':uri,'t':t.hex,'content':content}
+                }
+        )
+
+    def test_SendDsInfo_failure_invalid_uri(self):
+        ''' SendDsInfo creation should fail if uri is not valid '''
+        uri='..not_valid'
+        supplies=['uri1','uri2']
+        with self.assertRaises(TypeError) as cm:
+            msg=messages.SendDsInfo(uri=uri, supplies=supplies)
+
+    def test_SendDsInfo_failure_invalid_supplies_no_list(self):
+        ''' SendDsInfo creation should fail if supplies is not a list '''
+        uri='ds.uri'
+        supplies={'uri1','uri2'}
+        with self.assertRaises(TypeError) as cm:
+            msg=messages.SendDsInfo(uri=uri, supplies=supplies)
+        self.assertEqual(str(cm.exception), 'Invalid supplies parameter')
+
+    def test_SendDsInfo_failure_invalid_supplies_uri_not_string(self):
+        ''' SendDsInfo creation should fail if supplies uri is not a string '''
+        uri='ds.uri'
+        supplies=['uri1',TimeUUID()]
+        with self.assertRaises(TypeError) as cm:
+            msg=messages.SendDsInfo(uri=uri, supplies=supplies)
+
+    def test_SendDsInfo_failure_invalid_supplies_uri_not_valid(self):
+        ''' SendDsInfo creation should fail if supplies uri is not valid '''
+        uri='ds.uri'
+        supplies=['uri1','invalid uri']
+        with self.assertRaises(TypeError) as cm:
+            msg=messages.SendDsInfo(uri=uri, supplies=supplies)
+
+    def test_SendDsInfo_failure_invalid_supplies_uri_not_local(self):
+        ''' SendDsInfo creation should fail if supplies uri is not a local uri '''
+        uri='ds.uri'
+        supplies=['uri1','global:uri']
+        with self.assertRaises(TypeError) as cm:
+            msg=messages.SendDsInfo(uri=uri, supplies=supplies)
+
+    def test_SendDsInfo_success_no_supplies(self):
+        ''' SendDsInfo creation should succeed if no supplies are passed '''
+        uri='ds.uri'
+        msg=messages.SendDsInfo(uri=uri)
+        self.assertEqual(msg.uri, uri)
+        self.assertEqual(msg.irt, None)
+        self.assertTrue(isinstance(msg.seq, TimeUUID))
+        self.assertEqual(msg.supplies, None)
+
+    def test_SendDsInfo_success_some_supplies(self):
+        ''' SendDsInfo creation should succeed if some supplies are passed '''
+        uri='ds.uri'
+        supplies= ['uri1','uri2','uri3']
+        msg=messages.SendDsInfo(uri=uri, supplies=supplies)
+        self.assertEqual(msg.uri, uri)
+        self.assertEqual(msg.irt, None)
+        self.assertTrue(isinstance(msg.seq, TimeUUID))
+        self.assertEqual(msg.supplies, supplies)
+
+    def test_SendDsInfo_to_dict_success(self):
+        ''' SendDsInfo should return a valid dict representation of the object '''
+        uri='valid.uri'
+        supplies= ['uri1','uri2','uri3']
+        msg=messages.SendDsInfo(uri=uri, supplies=supplies)
+        self.assertTrue(isinstance(msg, messages.SendDsInfo))
+        self.assertEqual(
+            msg.to_dict(),{
+                'v':messages.KomlogMessage._version_,
+                'action':messages.Actions.SEND_DS_INFO.value,
+                'seq':msg.seq.hex,
+                'irt':None,
+                'payload':
+                    {'uri':uri,'supplies':supplies}
                 }
         )
 

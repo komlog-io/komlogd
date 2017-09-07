@@ -11,7 +11,7 @@ import pandas as pd
 from komlogd.api.common import exceptions, logging, timeuuid
 from komlogd.api.protocol import validation
 from komlogd.api.protocol.processing import procedure as prproc
-from komlogd.api.model.metrics import Metric, Datasource, Datapoint, Sample
+from komlogd.api.model.metrics import Datasource, Sample
 
 
 class MetricStore:
@@ -22,6 +22,7 @@ class MetricStore:
         self._tr_dfs = {}
         self._tr_synced_ranges = {}
         self._hooked = set()
+        self._metrics_info = {}
 
     async def sync(self):
         if getattr(self, '_prev_hooked', False):
@@ -321,6 +322,19 @@ class MetricStore:
                     self._add_synced_range(metric, r['t'], r['its'], r['ets'])
         if len(i_samples) > 0:
             await prproc.send_samples(i_samples, irt=tr.irt)
+            items = [s.metric for s in i_samples if isinstance(s.metric, Datasource) and s.metric.supplies != None]
+            info_metrics = set()
+            for m in items:
+                if not m in self._metrics_info or sorted(m.supplies) != self._metrics_info[m]['supplies']:
+                    info_metrics.add(m)
+            info_metrics = list(info_metrics)
+            if len(info_metrics)>0:
+                await prproc.send_info(list(info_metrics), irt=tr.irt)
+                for m in info_metrics:
+                    try:
+                        self._metrics_info[m]['supplies'] = sorted(m.supplies)
+                    except KeyError:
+                        self._metrics_info[m] = {'supplies':sorted(m.supplies)}
 
     def _tr_discard(self, tr):
         self._tr_dfs.pop(tr.tid, None)

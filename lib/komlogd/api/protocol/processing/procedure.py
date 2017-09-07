@@ -102,3 +102,27 @@ async def hook_to_metric(metric):
     else:
         return {'hooked':False, 'exists':False}
 
+async def send_info(metrics, irt=None):
+    by_session_msgs = {}
+    for metric in metrics:
+        if isinstance(metric, Datasource):
+            try:
+                msg = messages.SendDsInfo(uri=metric.uri, supplies=metric.supplies, irt=irt)
+                by_session_msgs[metric.session].append(msg)
+            except KeyError:
+                by_session_msgs[metric.session] = [msg]
+    response = {'errors':[], 'success':True}
+    for session, msgs in by_session_msgs.items():
+        for msg in msgs:
+            rsp = await session.send_message(msg)
+            session._mark_message_done(msg.seq)
+            if not isinstance(rsp, messages.GenericResponse):
+                result = {'msg':msg, 'success':False, 'error':'Unexpected message type'}
+                response['errors'].append(result)
+                response['success'] = False
+            elif rsp.status not in (Status.MESSAGE_ACCEPTED_FOR_PROCESSING, Status.MESSAGE_EXECUTION_OK):
+                result = {'msg':msg, 'success':False, 'error':' '.join(('code:',rsp.error,rsp.reason))}
+                response['errors'].append(result)
+                response['success'] = False
+    return response
+

@@ -7,14 +7,15 @@ from komlogd.api.model.metrics import Metrics
 
 @unique
 class Actions(Enum):
+    GENERIC_RESPONSE        = 'generic_response'
+    REQUEST_DATA            = 'request_data'
     HOOK_TO_URI             = 'hook_to_uri'
+    SEND_DATA_INTERVAL      = 'send_data_interval'
     SEND_MULTI_DATA         = 'send_multi_data'
     SEND_DP_DATA            = 'send_dp_data'
     SEND_DS_DATA            = 'send_ds_data'
+    SEND_DS_INFO            = 'send_ds_info'
     UNHOOK_FROM_URI         = 'unhook_from_uri'
-    REQUEST_DATA            = 'request_data'
-    SEND_DATA_INTERVAL      = 'send_data_interval'
-    GENERIC_RESPONSE        = 'generic_response'
 
 
 class Catalog(type):
@@ -31,6 +32,10 @@ class KomlogMessage(metaclass=Catalog):
         if cls is KomlogMessage:
             raise TypeError('<KomlogMessage> cannot be instantiated directly')
         return object.__new__(cls)
+
+    def __init__(self, seq, irt):
+        self.seq = seq if seq != None else timeuuid.TimeUUID()
+        self.irt = irt
 
     @property
     def action(self):
@@ -67,7 +72,9 @@ class KomlogMessage(metaclass=Catalog):
 
     @irt.setter
     def irt(self, value):
-        if value is None or validation.is_message_sequence(value):
+        if hasattr(self, '_irt'):
+            raise TypeError('irt cannot be modified')
+        elif value is None or validation.is_message_sequence(value):
             self._irt = value
         else:
             raise TypeError('Invalid irt')
@@ -88,8 +95,7 @@ class GenericResponse(KomlogMessage):
     _action_ = Actions.GENERIC_RESPONSE
 
     def __init__(self, status, error, reason, seq=None, irt=None):
-        self.seq = seq if seq else timeuuid.TimeUUID()
-        self.irt = irt
+        super().__init__(seq=seq, irt=irt)
         self.status = status
         self.error = error
         self.reason = reason
@@ -154,8 +160,7 @@ class SendDsData(KomlogMessage):
     _action_ = Actions.SEND_DS_DATA
 
     def __init__(self, uri, t, content, seq=None, irt=None):
-        self.seq=seq if seq else timeuuid.TimeUUID()
-        self.irt = irt
+        super().__init__(seq=seq, irt=irt)
         self.uri=uri
         self.t=t
         self.content=content
@@ -201,12 +206,56 @@ class SendDsData(KomlogMessage):
             }
         }
 
+class SendDsInfo(KomlogMessage):
+    _action_ = Actions.SEND_DS_INFO
+
+    def __init__(self, uri, supplies=None, seq=None, irt=None):
+        super().__init__(seq=seq, irt=irt)
+        self.uri = uri
+        self.supplies = supplies
+
+    @property
+    def uri(self):
+        return self._uri
+
+    @uri.setter
+    def uri(self, value):
+        validation.validate_uri(value)
+        self._uri = value
+
+    @property
+    def supplies(self):
+        return self._supplies
+
+    @supplies.setter
+    def supplies(self, uris):
+        if uris is None:
+            self._supplies = None
+        elif isinstance(uris, list):
+            for uri in uris:
+                validation.validate_local_uri(uri)
+            self._supplies = sorted(list(set(uris)))
+        else:
+            raise TypeError('Invalid supplies parameter')
+
+    def to_dict(self):
+        ''' returns a JSON serializable dict '''
+        return {
+            'v':self.v,
+            'action':self.action.value,
+            'seq':self.seq.hex,
+            'irt':self.irt.hex if self.irt else None,
+            'payload':{
+                'uri':self.uri,
+                'supplies':self.supplies
+            }
+        }
+
 class SendDpData(KomlogMessage):
     _action_ = Actions.SEND_DP_DATA
 
     def __init__(self, uri, t, content, seq=None, irt=None):
-        self.seq=seq if seq else timeuuid.TimeUUID()
-        self.irt=irt
+        super().__init__(seq=seq, irt=irt)
         self.uri=uri
         self.t=t
         self.content=content
@@ -256,8 +305,7 @@ class SendMultiData(KomlogMessage):
     _action_ = Actions.SEND_MULTI_DATA
 
     def __init__(self, t, uris, seq=None, irt=None):
-        self.seq=seq if seq else timeuuid.TimeUUID()
-        self.irt=irt
+        super().__init__(seq=seq, irt=irt)
         self.t=t
         self.uris=uris
 
@@ -331,8 +379,7 @@ class HookToUri(KomlogMessage):
     _action_ = Actions.HOOK_TO_URI
 
     def __init__(self, uri, seq=None, irt=None):
-        self.seq=seq if seq else timeuuid.TimeUUID()
-        self.irt=irt
+        super().__init__(seq=seq, irt=irt)
         self.uri=uri
 
     @property
@@ -360,8 +407,7 @@ class UnHookFromUri(KomlogMessage):
     _action_ = Actions.UNHOOK_FROM_URI
 
     def __init__(self, uri, seq=None, irt=None):
-        self.seq=seq if seq else timeuuid.TimeUUID()
-        self.irt=irt
+        super().__init__(seq=seq, irt=irt)
         self.uri = uri
 
     @property
@@ -389,8 +435,7 @@ class RequestData(KomlogMessage):
     _action_ = Actions.REQUEST_DATA
 
     def __init__(self, uri, start=None, end=None, count=None, seq=None, irt=None):
-        self.seq=seq if seq else timeuuid.TimeUUID()
-        self.irt=irt
+        super().__init__(seq=seq, irt=irt)
         self.uri = uri
         self.start = start
         self.end = end
@@ -459,8 +504,7 @@ class SendDataInterval(KomlogMessage):
     _action_ = Actions.SEND_DATA_INTERVAL
 
     def __init__(self, uri, m_type, start, end, data, seq=None, irt=None):
-        self.seq=seq if seq else timeuuid.TimeUUID()
-        self.irt=irt
+        super().__init__(seq=seq, irt=irt)
         self.uri = uri
         self.m_type = m_type
         self.start = start

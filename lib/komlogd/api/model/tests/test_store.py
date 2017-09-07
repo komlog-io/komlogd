@@ -2160,4 +2160,171 @@ class ApiModelStoreTest(unittest.TestCase):
             prproc.send_samples = bck
             raise
 
+    @test.sync(loop)
+    async def test_tr_commit_tr_exists_some_data_and_send_info_too(self):
+        ''' tr_commit should write data to store and send samples to Komlog, including ds info '''
+        try:
+            bck_send_samples = prproc.send_samples
+            bck_send_info = prproc.send_info
+            prproc.send_samples = test.AsyncMock(return_value = {'success':True})
+            prproc.send_info = test.AsyncMock(return_value = {'success':True})
+            ms = MetricStore()
+            metrics = [Datasource(uri=str(i),supplies=['var.'+str(i)]) for i in range(1,10)]
+            for metric in metrics:
+                ms._hooked.add(metric)
+            tr_df_inserts = [{'metric':metric, 't':TimeUUID(),'value':metric.uri+'i'} for metric in metrics]
+            tr_df_gets = [{'metric':metric, 't':TimeUUID(),'value':metric.uri+'g'} for metric in metrics]
+            t = TimeUUID()
+            tr = Transaction(t)
+            async def f():
+                nonlocal ms, tr, tr_df_inserts, tr_df_gets
+                for reg in tr_df_inserts:
+                    ms.insert(reg['metric'], reg['t'], reg['value'])
+                for reg in tr_df_gets:
+                    self.assertIsNone(ms._store(reg['metric'], reg['t'], reg['value'], tm=time.monotonic(), op='g',tid=tr.tid))
+                    self.assertIsNone(ms._add_synced_range(reg['metric'], time.monotonic(), MIN_TIMEUUID, MAX_TIMEUUID, tr.tid))
+            await TransactionTask(coro=f(), tr=tr)
+            self.assertTrue(tr.tid in ms._tr_dfs)
+            self.assertTrue(tr.tid in ms._tr_synced_ranges)
+            self.assertEqual(len(ms._tr_synced_ranges[tr.tid].keys()),len(tr_df_gets))
+            self.assertEqual(len(ms._tr_dfs[tr.tid].keys()),len(tr_df_gets))
+            for reg in tr_df_gets:
+                self.assertFalse(reg['metric'] in ms._dfs)
+                self.assertFalse(reg['metric'] in ms._synced_ranges)
+                self.assertTrue(reg['metric'] in ms._tr_dfs[tr.tid])
+                self.assertTrue(reg['metric'] in ms._tr_synced_ranges[tr.tid])
+                self.assertEqual(len(ms._tr_dfs[tr.tid][reg['metric']]),2)
+                self.assertEqual(len(ms._tr_synced_ranges[tr.tid][reg['metric']]),1)
+                self.assertEqual(ms._tr_synced_ranges[tr.tid][reg['metric']][0]['its'],MIN_TIMEUUID)
+                self.assertEqual(ms._tr_synced_ranges[tr.tid][reg['metric']][0]['ets'],MAX_TIMEUUID)
+            self.assertIsNone(await ms._tr_commit(tr))
+            for reg in tr_df_gets:
+                self.assertTrue(reg['metric'] in ms._dfs)
+                self.assertTrue(reg['metric'] in ms._synced_ranges)
+                self.assertTrue(reg['metric'] in ms._tr_dfs[tr.tid])
+                self.assertTrue(reg['metric'] in ms._tr_synced_ranges[tr.tid])
+                self.assertEqual(len(ms._tr_dfs[tr.tid][reg['metric']]),2)
+                self.assertEqual(len(ms._dfs[reg['metric']]),1)
+                self.assertEqual(len(ms._synced_ranges[reg['metric']]),1)
+                self.assertEqual(ms._dfs[reg['metric']].iloc[0].value, reg['value'])
+                self.assertEqual(ms._synced_ranges[reg['metric']][0]['its'],MIN_TIMEUUID)
+                self.assertEqual(ms._synced_ranges[reg['metric']][0]['ets'],MAX_TIMEUUID)
+            self.assertEqual(prproc.send_samples.call_count,1)
+            self.assertEqual(len(prproc.send_samples.call_args[0][0]), len([Sample(r['metric'],r['t'],r['value']) for r in tr_df_inserts]))
+            self.assertEqual(prproc.send_info.call_count,1)
+            for r in tr_df_inserts:
+                self.assertTrue(r['metric'] in prproc.send_info.call_args[0][0])
+            prproc.send_samples = bck_send_samples
+            prproc.send_info = bck_send_info
+        except:
+            prproc.send_samples = bck_send_samples
+            prproc.send_info = bck_send_info
+            raise
+
+    @test.sync(loop)
+    async def test_tr_commit_tr_exists_some_data_and_send_info_too_only_missing(self):
+        ''' tr_commit should write data to store and send samples to Komlog, including ds info for missing or modified '''
+        try:
+            bck_send_samples = prproc.send_samples
+            bck_send_info = prproc.send_info
+            prproc.send_samples = test.AsyncMock(return_value = {'success':True})
+            prproc.send_info = test.AsyncMock(return_value = {'success':True})
+            ms = MetricStore()
+            metrics = [Datasource(uri=str(i),supplies=['var.'+str(i)]) for i in range(1,10)]
+            for metric in metrics:
+                ms._hooked.add(metric)
+            tr_df_inserts = [{'metric':metric, 't':TimeUUID(),'value':metric.uri+'i'} for metric in metrics]
+            tr_df_gets = [{'metric':metric, 't':TimeUUID(),'value':metric.uri+'g'} for metric in metrics]
+            t = TimeUUID()
+            tr = Transaction(t)
+            async def f():
+                nonlocal ms, tr, tr_df_inserts, tr_df_gets
+                for reg in tr_df_inserts:
+                    ms.insert(reg['metric'], reg['t'], reg['value'])
+                for reg in tr_df_gets:
+                    self.assertIsNone(ms._store(reg['metric'], reg['t'], reg['value'], tm=time.monotonic(), op='g',tid=tr.tid))
+                    self.assertIsNone(ms._add_synced_range(reg['metric'], time.monotonic(), MIN_TIMEUUID, MAX_TIMEUUID, tr.tid))
+            await TransactionTask(coro=f(), tr=tr)
+            self.assertTrue(tr.tid in ms._tr_dfs)
+            self.assertTrue(tr.tid in ms._tr_synced_ranges)
+            self.assertEqual(len(ms._tr_synced_ranges[tr.tid].keys()),len(tr_df_gets))
+            self.assertEqual(len(ms._tr_dfs[tr.tid].keys()),len(tr_df_gets))
+            for reg in tr_df_gets:
+                self.assertFalse(reg['metric'] in ms._dfs)
+                self.assertFalse(reg['metric'] in ms._synced_ranges)
+                self.assertTrue(reg['metric'] in ms._tr_dfs[tr.tid])
+                self.assertTrue(reg['metric'] in ms._tr_synced_ranges[tr.tid])
+                self.assertEqual(len(ms._tr_dfs[tr.tid][reg['metric']]),2)
+                self.assertEqual(len(ms._tr_synced_ranges[tr.tid][reg['metric']]),1)
+                self.assertEqual(ms._tr_synced_ranges[tr.tid][reg['metric']][0]['its'],MIN_TIMEUUID)
+                self.assertEqual(ms._tr_synced_ranges[tr.tid][reg['metric']][0]['ets'],MAX_TIMEUUID)
+            self.assertIsNone(await ms._tr_commit(tr))
+            for reg in tr_df_gets:
+                self.assertTrue(reg['metric'] in ms._dfs)
+                self.assertTrue(reg['metric'] in ms._synced_ranges)
+                self.assertTrue(reg['metric'] in ms._tr_dfs[tr.tid])
+                self.assertTrue(reg['metric'] in ms._tr_synced_ranges[tr.tid])
+                self.assertEqual(len(ms._tr_dfs[tr.tid][reg['metric']]),2)
+                self.assertEqual(len(ms._dfs[reg['metric']]),1)
+                self.assertEqual(len(ms._synced_ranges[reg['metric']]),1)
+                self.assertEqual(ms._dfs[reg['metric']].iloc[0].value, reg['value'])
+                self.assertEqual(ms._synced_ranges[reg['metric']][0]['its'],MIN_TIMEUUID)
+                self.assertEqual(ms._synced_ranges[reg['metric']][0]['ets'],MAX_TIMEUUID)
+            self.assertEqual(prproc.send_samples.call_count,1)
+            self.assertEqual(len(prproc.send_samples.call_args[0][0]), len([Sample(r['metric'],r['t'],r['value']) for r in tr_df_inserts]))
+            self.assertEqual(prproc.send_info.call_count,1)
+            for r in tr_df_inserts:
+                self.assertTrue(r['metric'] in prproc.send_info.call_args[0][0])
+            prproc.send_samples.reset_mock()
+            prproc.send_info.reset_mock()
+            #another transaction that modifies some supplies
+            metrics = [Datasource(uri=str(i),supplies=['var.'+str(i),'something']) for i in range(1,10)]
+            # we want to update only the last 5 metrics
+            for i,m in enumerate(metrics):
+                if i <5:
+                    m.supplies = None
+            tr_df_inserts = [{'metric':metric, 't':TimeUUID(),'value':metric.uri+'i'} for metric in metrics]
+            tr_df_gets = [{'metric':metric, 't':TimeUUID(),'value':metric.uri+'g'} for metric in metrics]
+            t = TimeUUID()
+            tr = Transaction(t)
+            await TransactionTask(coro=f(), tr=tr)
+            self.assertTrue(tr.tid in ms._tr_dfs)
+            self.assertTrue(tr.tid in ms._tr_synced_ranges)
+            self.assertEqual(len(ms._tr_synced_ranges[tr.tid].keys()),len(tr_df_gets))
+            self.assertEqual(len(ms._tr_dfs[tr.tid].keys()),len(tr_df_gets))
+            for reg in tr_df_gets:
+                self.assertTrue(reg['metric'] in ms._dfs)
+                self.assertTrue(reg['metric'] in ms._synced_ranges)
+                self.assertTrue(reg['metric'] in ms._tr_dfs[tr.tid])
+                self.assertTrue(reg['metric'] in ms._tr_synced_ranges[tr.tid])
+                self.assertEqual(len(ms._tr_dfs[tr.tid][reg['metric']]),2)
+                self.assertEqual(len(ms._tr_synced_ranges[tr.tid][reg['metric']]),1)
+                self.assertEqual(ms._tr_synced_ranges[tr.tid][reg['metric']][0]['its'],MIN_TIMEUUID)
+                self.assertEqual(ms._tr_synced_ranges[tr.tid][reg['metric']][0]['ets'],MAX_TIMEUUID)
+            self.assertIsNone(await ms._tr_commit(tr))
+            for reg in tr_df_gets:
+                self.assertTrue(reg['metric'] in ms._dfs)
+                self.assertTrue(reg['metric'] in ms._synced_ranges)
+                self.assertTrue(reg['metric'] in ms._tr_dfs[tr.tid])
+                self.assertTrue(reg['metric'] in ms._tr_synced_ranges[tr.tid])
+                self.assertEqual(len(ms._tr_dfs[tr.tid][reg['metric']]),2)
+                self.assertEqual(len(ms._dfs[reg['metric']]),2)
+                self.assertEqual(len(ms._synced_ranges[reg['metric']]),1)
+                self.assertEqual(ms._dfs[reg['metric']].iloc[0].value, reg['value'])
+                self.assertEqual(ms._synced_ranges[reg['metric']][0]['its'],MIN_TIMEUUID)
+                self.assertEqual(ms._synced_ranges[reg['metric']][0]['ets'],MAX_TIMEUUID)
+            self.assertEqual(prproc.send_samples.call_count,1)
+            self.assertEqual(len(prproc.send_samples.call_args[0][0]), len([Sample(r['metric'],r['t'],r['value']) for r in tr_df_inserts]))
+            self.assertEqual(prproc.send_info.call_count,1)
+            for i,m in enumerate(metrics):
+                if i<5:
+                    self.assertTrue(m not in prproc.send_info.call_args[0][0])
+                else:
+                    self.assertTrue(m in prproc.send_info.call_args[0][0])
+            prproc.send_samples = bck_send_samples
+            prproc.send_info = bck_send_info
+        except:
+            prproc.send_samples = bck_send_samples
+            prproc.send_info = bck_send_info
+            raise
 
