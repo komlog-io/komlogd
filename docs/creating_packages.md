@@ -1,8 +1,8 @@
 # Creating packages
 
 komlogd packages are developed in [Python](https://www.python.org) and are installed with
-[pip](https://pypi.python.org/pypi/pip), so they are like any python package with some characteristics
-that make them pluggable to komlogd.
+[pip](https://pypi.python.org/pypi/pip), so they are like any python package with some peculiarities
+that make them pluggable into komlogd.
 
 # Package structure
 
@@ -43,24 +43,27 @@ project and adapt it to your needs.
 
 The contents of setup.py (as of v0.1 of the package) are:
 
-> from setuptools import setup
->
-> setup(
->     name = 'kpack_linux',
->     license = 'Apache Software License',
->     packages = ['kpack_linux'],
->     version = '0.1',
->     entry_points = {
->         'komlogd.package': 'load = kpack_linux.load'
->     }
-> )
+```
+from setuptools import setup
+
+setup(
+    name = 'kpack_linux',
+    license = 'Apache Software License',
+    packages = ['kpack_linux'],
+    version = '0.1',
+    entry_points = {
+        'komlogd.package': 'load = kpack_linux.load'
+    }
+)
+```
 
 **The reason this package is a komlogd package is the *entry_points* keyword**. In this keyword we specify
-the key *komlogd.package* and the value *load = kpack_linux.load*. This key tells komlogd to load the kpack_linux
-package on startup and the value 'load = kpack_linux.load' tells it the module to import to load the package.
+the key *komlogd.package* and the value *load = kpack_linux.load*.
 
-A komlogd package has to define the key *komlogd.package* in the entry_points keyword. The value can be a module or
-a function.
+* Key *komlogd.package* tells komlogd that kpack_linux is a komlogd package.
+* Value *'load = kpack_linux.load'* tells komlogd what to import to load it.
+
+Your komlogd package must implement the previous *machinery* to be a valid one.
 
 You can learn more about the *entry_points* keyword in the
 [setuptools documentation](http://setuptools.readthedocs.io/en/latest/setuptools.html#dynamic-discovery-of-services-and-plugins)
