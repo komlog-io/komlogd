@@ -12,7 +12,7 @@ processing and exploration.
 ![home](docs/img/home.png)
 
 Komlog is designed with a key goal in mind: **machines should be able to understand and
-process texts the same way people do**. Particularly, it is focused on identifying
+process texts in the same way people do**. Particularly, it is focused on identifying
 metrics on any text, either generated with an operating system command, script or
 any command line interface application.
 
@@ -72,7 +72,7 @@ applications for data analysis, anomaly detection, forecasting or anything relat
 
 Komlog also offers a plugins subsystem which you can use to create your own plugins (we call it packages),
 or use the ones shared by others. **Create a package for monitoring your favourite database, your business processes
-or anything in between.**  As an example, you can check out our official package
+or anything in between.** As an example, you can check out our official package
 for monitoring [Linux servers](https://github.com/komlog-io/kpack_linux).
 
 In the next sections we'll explain in detail how to install, configure and use komlogd and the Komlog platform.
