@@ -62,7 +62,7 @@ Edit komlogd configuration file (*komlogd.yaml*) and set your username in *usern
 We must authorize the agent in our Komlog account. To do it, access your [Komlog configuration page](https://www.komlog.io/config)
 and in the *Agents* section create a new agent and paste the contents of your *key.pub* file.
 
-[!New key](img/new_key.png)
+![New key](img/new_key.png)
 
 > komlogd **private key** will never be sent to Komlog. Keep it safe.
 

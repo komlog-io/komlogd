@@ -66,12 +66,13 @@ the corresponding metric. Every time we send samples to Komlog, new values will 
 > the *path* in a filesystem. In Komlog, each user stores her data in a *"filesystem"* shared between her agents.
 > These and other concepts are explained in detail in the [documentation](docs/))
 
-Internally, Komlog is an event based execution platform. This means **we can subscribe our agents to the uris
-we want, and execute a function every time the uri is updated**. So, we can create real-time
-applications for data analysis, anomaly detection, forecasting or anything we can do with time series analysis.
+Internally, Komlog is an event based execution platform. This means **you can subscribe your agents to the uris
+you want, and execute functions every time they are updated**. With this functionality, you can create real-time
+applications for data analysis, anomaly detection, forecasting or anything related with time series analysis.
 
-Komlog also offers a plugins subsystem we can use to create our own plugins (we call it packages),
-or use the ones shared by others. As an example, you can check out our official package
+Komlog also offers a plugins subsystem which you can use to create your own plugins (we call it packages),
+or use the ones shared by others. **Create a package for monitoring your favourite database, your business processes
+or anything in between.**  As an example, you can check out our official package
 for monitoring [Linux servers](https://github.com/komlog-io/kpack_linux).
 
 In the next sections we'll explain in detail how to install, configure and use komlogd and the Komlog platform.
@@ -87,7 +88,7 @@ In the next sections we'll explain in detail how to install, configure and use k
 
 ## Contributing
 
-Feel free to fork and push your code. Thanks for taking the time to contribute to the project.
+Feel free to fork and make your pull requests. **Thanks for taking the time to contribute to the project.**
 
 ## License
 

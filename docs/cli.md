@@ -6,7 +6,7 @@ data parsing, allowing them visualize any metric showed in a command line interf
 You can visualize metrics in commands or scripts outputs, file contents, or anything we can show with a CLI tool.
 
 > You can send numeric values too, not only texts, if you need it.
-> Check out [design principles](docs/design.md) for more information and advanced uses.
+> Check out [design principles](design.md) for more information and advanced uses.
 
 In this example, we are going to send the *df -k* command's output to Komlog, so we can monitor
 disk occupation. In Komlog, users organize their data in a tree like structure called
@@ -29,7 +29,7 @@ Sometimes, Komlog cannot identify the metrics we need. In this situations, **we 
 just clicking on the value and naming it**. This feedback helps Komlog learn new ways to identify metrics, so
 the more we feed Komlog, the better and more metrics will identify automatically in the future.
 
-![identify dp](docs/img/identify_dp.png)
+![identify dp](img/identify_dp.png)
 
 
 We can nest our metrics in different levels using the dot character (.) For example, if we have uris *host.occupation*, *host.occupation.md1* and *host.occupation.md2*, Komlog will nest them this way:
