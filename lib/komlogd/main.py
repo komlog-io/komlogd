@@ -10,6 +10,7 @@ import signal
 import asyncio
 import argparse
 import functools
+import subprocess
 import traceback
 from stat import S_ISFIFO, S_ISREG
 from komlogd.api.model import transactions
@@ -80,6 +81,15 @@ class Application:
 
     async def stop(self):
         logging.logger.debug('Stopping komlogd.')
+        for env in self.venvs:
+            env['proc'].send_signal(signal.SIGTERM)
+        for env in self.venvs:
+            try:
+                env['proc'].wait(10)
+            except subprocess.TimeoutExpired:
+                logging.logger.error('Timeout expired waiting for virtualenv process exit: '+env['name'])
+                logging.logger.error('Terminating virtualenv process: '+env['name'])
+                env['proc'].kill()
         await self.session.close()
 
 app = None
