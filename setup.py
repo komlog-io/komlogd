@@ -1,3 +1,4 @@
+import os
 import sys
 import unittest
 from setuptools import setup, find_packages
@@ -12,6 +13,7 @@ setup(
     name='komlogd',
     version=__version__,
     description='Komlog agent',
+    long_description=open(os.path.join(os.path.dirname(__file__), 'docs/.pypi_readme.rst')).read(),
     author='komlog Team',
     author_email='hello@komlog.io',
     url='https://github.com/komlog-io/komlogd',
