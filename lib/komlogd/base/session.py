@@ -8,8 +8,8 @@ from komlogd.base import crypto, config
 
 
 def initialize_komlog_session():
-    username = config.config.username
     privkey = crypto.get_private_key()
+    username = config.config.username
     return session.KomlogSession(username=username, privkey=privkey)
 
 async def send_stdin(s, uri):
