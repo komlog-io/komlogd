@@ -1,0 +1,79 @@
+.. image:: https://badges.gitter.im/Join%20Chat.svg
+   :alt: Join the chat at https://gitter.im/komlog_/komlog
+   :target: https://gitter.im/komlog_/komlog?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
+
+.. image:: https://img.shields.io/badge/irc.freenode.net-%23komlog-blue.svg
+   :alt: IRC channel #komlog at Freenode
+
+Welcome to **komlogd** (The Komlog agent) PyPI page.
+
+.. image:: https://raw.githubusercontent.com/komlog-io/komlogd/master/docs/img/home_mini.png
+   :target: https://github.com/komlog-io/komlogd
+
+`Komlog <https://www.komlog.io>`_ is a PaaS for helping observability teams to better understand their systems.
+It is a flexible and powerful platform that adapts to users needs, not vice versa, for visualizing
+and processing data. It helps users in repetitive and tedious tasks, such as data cleanup,
+processing and exploration. It is designed with a key goal in mind:
+**machines should be able to understand and process texts in the same way people do**.
+Particularly, it is focused on identifying metrics on any text,
+either generated with an operating system command, script or any command line interface application.
+
+Komlog Primer
+-------------
+
+Suppose we type this command to see CPU utilization:
+
+.. code:: sh
+
+    top -b -n 2 | awk 'BEGIN {RS=""} FNR == 3 {print}'
+
+The output should be something similar to this:
+
+.. code:: sh
+
+    top - 20:05:01 up 1 day, 23:52,  0 users,  load average: 0.02, 0.05, 0.07
+    Tasks: 174 total,   1 running, 173 sleeping,   0 stopped,   0 zombie
+    %Cpu0  :   0.7/0.7     1[                                                     ]
+    %Cpu1  :   0.7/0.0     1[                                                     ]
+    %Cpu2  :   0.7/0.0     1[                                                     ]
+    %Cpu3  :   1.3/0.7     2[|                                                    ]
+    %Cpu4  :   1.3/0.0     1[|                                                    ]
+    %Cpu5  :   3.3/0.7     4[||                                                   ]
+    %Cpu6  :   2.0/0.7     3[|                                                    ]
+    %Cpu7  :   2.6/0.7     3[|                                                    ]
+    GiB Mem : 13.1/15.328   [                                                     ]
+    GiB Swap:  0.0/0.998    [                                                     ]
+
+
+This information should be enough for a machine to identify CPU load,
+users logged in or current tasks the same way is enough for an experienced system analyst.
+Our goal is to solve this problem and offer a **useful platform for a field as wide
+and heterogeneous as system analysis**.
+
+Let's send the previous data to Komlog, redirecting it to its agent, komlogd, this way:
+
+.. code:: sh
+
+    top -b -n 2 | awk 'BEGIN {RS=""} FNR == 3 {print}' | komlogd -u tmp.cpu
+
+Komlog will show us the information this way:
+
+.. image:: https://raw.githubusercontent.com/komlog-io/komlogd/master/docs/img/top.png
+   :alt: Komlog showing top
+
+As you can see, some values are in bold, meaning that **Komlog has identified the value
+and has associated it to the corresponding metric.** Every time we send samples to Komlog,
+new values will be appended to metrics already detected.
+
+Internally, Komlog is an event based execution platform. This means **you can subscribe
+your agents to the uris you want, and execute functions every time they are updated**.
+With this functionality, you can create real-time applications for data analysis, anomaly detection,
+forecasting or anything related with time series analysis.
+
+Komlog also offers a plugins subsystem which you can use to create your own plugins
+(we call it packages), or use the ones shared by others. **Create a package for monitoring
+your favourite database, your business processes or anything in between.** 
+
+Check out `komlogd repository <https://www.github.com/komlog-io/komlogd>`_ for documentation and more information
+about komlogd and the Komlog platform.
+
