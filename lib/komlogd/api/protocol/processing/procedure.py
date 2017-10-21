@@ -44,7 +44,7 @@ async def send_samples(samples, irt=None):
                 response['errors'].append(result)
                 response['success'] = False
             elif rsp.status not in (Status.MESSAGE_ACCEPTED_FOR_PROCESSING, Status.MESSAGE_EXECUTION_OK):
-                result = {'msg':msg, 'success':False, 'error':' '.join(('code:',rsp.error,rsp.reason))}
+                result = {'msg':msg, 'success':False, 'error':' '.join(('code:',str(rsp.error),rsp.reason))}
                 response['errors'].append(result)
                 response['success'] = False
     return response
@@ -121,7 +121,7 @@ async def send_info(metrics, irt=None):
                 response['errors'].append(result)
                 response['success'] = False
             elif rsp.status not in (Status.MESSAGE_ACCEPTED_FOR_PROCESSING, Status.MESSAGE_EXECUTION_OK):
-                result = {'msg':msg, 'success':False, 'error':' '.join(('code:',rsp.error,rsp.reason))}
+                result = {'msg':msg, 'success':False, 'error':' '.join(('code:',str(rsp.error),rsp.reason))}
                 response['errors'].append(result)
                 response['success'] = False
     return response
