@@ -18,7 +18,7 @@ setup(
     author_email='hello@komlog.io',
     url='https://github.com/komlog-io/komlogd',
     license='Apache Software License',
-    install_requires=['pyyaml', 'setuptools', 'cryptography', 'aiohttp>=2.0', 'pandas>=0.18.1'],
+    install_requires=['pyyaml', 'setuptools', 'cryptography>=2.0', 'aiohttp>=2.0', 'pandas>=0.18.1'],
     package_dir={ '': 'lib' },
     packages = find_packages('lib'),
     test_suite = 'komlogd',
