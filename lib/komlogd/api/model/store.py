@@ -240,7 +240,7 @@ class MetricStore:
         df = self._dfs.get(metric, None)
         have_df, have_tr_df = isinstance(df, pd.DataFrame), isinstance(tr_df, pd.DataFrame)
         if have_df and have_tr_df:
-            df = df[df.t.between(its,ets)][df.index<=tr.tm][['t','value']]
+            df = df[(df.index<=tr.tm) & (df.t.between(its,ets))][['t','value']]
             tr_df = tr_df[tr_df.t.between(its,ets)][['t','value']]
             # in concat, tr_df at the end, because its index will always be higher. No need to sort it.
             join_df = pd.concat([df,tr_df])
