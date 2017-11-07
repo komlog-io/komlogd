@@ -5,7 +5,7 @@ import asyncio
 import pandas as pd
 from komlogd.api import transfer_methods
 from komlogd.api.common import exceptions
-from komlogd.api.model import schedules
+from komlogd.api.model import schedules, test
 from komlogd.api.model.store import MetricStore
 from komlogd.api.model.metrics import Metric, Datasource, Datapoint, Sample
 from komlogd.api.model.transfer_methods import tmIndex
@@ -130,81 +130,121 @@ class ApiTransferMethodsTest(unittest.TestCase):
         self.assertEqual(tm_info['enabled'], False)
         self.assertEqual(tm_info['tm'], tm)
 
-    def test_bind_transfermethod_error_no_associated_function(self):
+    @test.sync(loop)
+    async def test_bind_transfermethod_error_no_associated_function(self):
         ''' calling bind should fail if tm has no associated function '''
-        def func(param):
-            pass
-        tm=transfer_methods.transfermethod(f_params={'param':'param'})
-        self.assertTrue(isinstance(tm.mid,uuid.UUID))
-        self.assertEqual(tm.schedule, None)
-        self.assertEqual(tm.f_params, {'param':'param'})
-        with self.assertRaises(exceptions.BadParametersException) as cm:
-            tm.bind()
+        try:
+            async def enable_tm(mid):
+                return True
+            enable_tm_bck = tmIndex.enable_tm
+            tmIndex.enable_tm = enable_tm
+            def func(param):
+                pass
+            tm=transfer_methods.transfermethod(f_params={'param':'param'})
+            self.assertTrue(isinstance(tm.mid,uuid.UUID))
+            self.assertEqual(tm.schedule, None)
+            self.assertEqual(tm.f_params, {'param':'param'})
+            with self.assertRaises(exceptions.BadParametersException) as cm:
+                await tm.bind()
+        except:
+            raise
+        finally:
+            tmIndex.enable_tm = enable_tm_bck
 
-    def test_bind_transfermethod_success_without_schedule(self):
+    @test.sync(loop)
+    async def test_bind_transfermethod_success_without_schedule(self):
         ''' calling bind should succeed with a tm without schedule '''
-        def func(param):
-            pass
-        tm=transfer_methods.transfermethod(f=func, f_params={'param':'param'})
-        self.assertTrue(isinstance(tm.mid,uuid.UUID))
-        self.assertEqual(tm._f, func)
-        self.assertEqual(tm.schedule, None)
-        self.assertEqual(tm.f_params, {'param':'param'})
-        tm.bind()
-        self.assertEqual(tm._func_params.keys(), {'param':'param'}.keys())
-        self.assertNotEqual(tm.schedule, None)
-        self.assertTrue(isinstance(tm.schedule, schedules.OnUpdateSchedule))
-        self.assertEqual(tm.schedule.activation_metrics, [])
-        self.assertEqual(tm.schedule.exec_on_load, False)
-        self.assertIsNotNone(getattr(tm,'f',None))
-        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
-        tm_info = tmIndex.get_tm_info(tm.mid)
-        self.assertEqual(tm_info['enabled'], False)
-        self.assertEqual(tm_info['tm'], tm)
+        try:
+            async def enable_tm(mid):
+                return True
+            enable_tm_bck = tmIndex.enable_tm
+            tmIndex.enable_tm = enable_tm
+            def func(param):
+                pass
+            tm=transfer_methods.transfermethod(f=func, f_params={'param':'param'})
+            self.assertTrue(isinstance(tm.mid,uuid.UUID))
+            self.assertEqual(tm._f, func)
+            self.assertEqual(tm.schedule, None)
+            self.assertEqual(tm.f_params, {'param':'param'})
+            await tm.bind()
+            self.assertEqual(tm._func_params.keys(), {'param':'param'}.keys())
+            self.assertNotEqual(tm.schedule, None)
+            self.assertTrue(isinstance(tm.schedule, schedules.OnUpdateSchedule))
+            self.assertEqual(tm.schedule.activation_metrics, [])
+            self.assertEqual(tm.schedule.exec_on_load, False)
+            self.assertIsNotNone(getattr(tm,'f',None))
+            self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+            tm_info = tmIndex.get_tm_info(tm.mid)
+            self.assertEqual(tm_info['enabled'], False)
+            self.assertEqual(tm_info['tm'], tm)
+        except:
+            raise
+        finally:
+            tmIndex.enable_tm = enable_tm_bck
 
-    def test_bind_transfermethod_success_with_CronSchedule(self):
+    @test.sync(loop)
+    async def test_bind_transfermethod_success_with_CronSchedule(self):
         ''' calling bind should succeed with a tm with CronSchedule '''
-        def func(param):
-            pass
-        tm=transfer_methods.transfermethod(f=func, f_params={'param':'param'}, schedule=schedules.CronSchedule())
-        self.assertTrue(isinstance(tm.mid,uuid.UUID))
-        self.assertEqual(tm._f, func)
-        self.assertNotEqual(tm.schedule, None)
-        self.assertTrue(isinstance(tm.schedule, schedules.CronSchedule))
-        self.assertEqual(tm.f_params, {'param':'param'})
-        tm.bind()
-        self.assertEqual(tm._func_params.keys(), {'param':'param'}.keys())
-        self.assertNotEqual(tm.schedule, None)
-        self.assertTrue(isinstance(tm.schedule, schedules.CronSchedule))
-        self.assertEqual(tm.schedule.activation_metrics, [])
-        self.assertEqual(tm.schedule.exec_on_load, False)
-        self.assertIsNotNone(getattr(tm,'f',None))
-        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
-        tm_info = tmIndex.get_tm_info(tm.mid)
-        self.assertEqual(tm_info['enabled'], False)
-        self.assertEqual(tm_info['tm'], tm)
+        try:
+            async def enable_tm(mid):
+                return True
+            enable_tm_bck = tmIndex.enable_tm
+            tmIndex.enable_tm = enable_tm
+            def func(param):
+                pass
+            tm=transfer_methods.transfermethod(f=func, f_params={'param':'param'}, schedule=schedules.CronSchedule())
+            self.assertTrue(isinstance(tm.mid,uuid.UUID))
+            self.assertEqual(tm._f, func)
+            self.assertNotEqual(tm.schedule, None)
+            self.assertTrue(isinstance(tm.schedule, schedules.CronSchedule))
+            self.assertEqual(tm.f_params, {'param':'param'})
+            await tm.bind()
+            self.assertEqual(tm._func_params.keys(), {'param':'param'}.keys())
+            self.assertNotEqual(tm.schedule, None)
+            self.assertTrue(isinstance(tm.schedule, schedules.CronSchedule))
+            self.assertEqual(tm.schedule.activation_metrics, [])
+            self.assertEqual(tm.schedule.exec_on_load, False)
+            self.assertIsNotNone(getattr(tm,'f',None))
+            self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+            tm_info = tmIndex.get_tm_info(tm.mid)
+            self.assertEqual(tm_info['enabled'], False)
+            self.assertEqual(tm_info['tm'], tm)
+        except:
+            raise
+        finally:
+            tmIndex.enable_tm = enable_tm_bck
 
-    def test_bind_transfermethod_success_with_DummySchedule(self):
+    @test.sync(loop)
+    async def test_bind_transfermethod_success_with_DummySchedule(self):
         ''' calling bind should succeed with a tm with DummySchedule '''
-        def func(param):
-            pass
-        tm=transfer_methods.transfermethod(f=func, f_params={'param':'param'}, schedule=schedules.DummySchedule())
-        self.assertTrue(isinstance(tm.mid,uuid.UUID))
-        self.assertEqual(tm._f, func)
-        self.assertNotEqual(tm.schedule, None)
-        self.assertTrue(isinstance(tm.schedule, schedules.DummySchedule))
-        self.assertEqual(tm.f_params, {'param':'param'})
-        tm.bind()
-        self.assertEqual(tm._func_params.keys(), {'param':'param'}.keys())
-        self.assertNotEqual(tm.schedule, None)
-        self.assertTrue(isinstance(tm.schedule, schedules.DummySchedule))
-        self.assertEqual(tm.schedule.activation_metrics, [])
-        self.assertEqual(tm.schedule.exec_on_load, False)
-        self.assertIsNotNone(getattr(tm,'f',None))
-        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
-        tm_info = tmIndex.get_tm_info(tm.mid)
-        self.assertEqual(tm_info['enabled'], False)
-        self.assertEqual(tm_info['tm'], tm)
+        try:
+            async def enable_tm(mid):
+                return True
+            def func(param):
+                pass
+            enable_tm_bck = tmIndex.enable_tm
+            tmIndex.enable_tm = enable_tm
+            tm=transfer_methods.transfermethod(f=func, f_params={'param':'param'}, schedule=schedules.DummySchedule())
+            self.assertTrue(isinstance(tm.mid,uuid.UUID))
+            self.assertEqual(tm._f, func)
+            self.assertNotEqual(tm.schedule, None)
+            self.assertTrue(isinstance(tm.schedule, schedules.DummySchedule))
+            self.assertEqual(tm.f_params, {'param':'param'})
+            await tm.bind()
+            self.assertEqual(tm._func_params.keys(), {'param':'param'}.keys())
+            self.assertNotEqual(tm.schedule, None)
+            self.assertTrue(isinstance(tm.schedule, schedules.DummySchedule))
+            self.assertEqual(tm.schedule.activation_metrics, [])
+            self.assertEqual(tm.schedule.exec_on_load, False)
+            self.assertIsNotNone(getattr(tm,'f',None))
+            self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+            tm_info = tmIndex.get_tm_info(tm.mid)
+            self.assertEqual(tm_info['enabled'], False)
+            self.assertEqual(tm_info['tm'], tm)
+        except:
+            raise
+        finally:
+            tmIndex.enable_tm = enable_tm_bck
 
     def test_unbind_transfermethod_success_not_binded_before(self):
         ''' we should be able to unbind a not previously binded transfermethod '''
@@ -221,29 +261,39 @@ class ApiTransferMethodsTest(unittest.TestCase):
         tm_info = tmIndex.get_tm_info(tm.mid)
         self.assertIsNone(tm_info)
 
-    def test_unbind_transfermethod_success_binded_before(self):
+    @test.sync(loop)
+    async def test_unbind_transfermethod_success_binded_before(self):
         ''' we should be able to unbind a previously binded transfermethod '''
-        def func(param):
-            pass
-        tm=transfer_methods.transfermethod(f=func, f_params={'param':'param'})
-        self.assertTrue(isinstance(tm.mid,uuid.UUID))
-        self.assertEqual(tm._f, func)
-        self.assertEqual(tm.schedule, None)
-        self.assertEqual(tm.f_params, {'param':'param'})
-        tm.bind()
-        self.assertEqual(tm._func_params.keys(), {'param':'param'}.keys())
-        self.assertNotEqual(tm.schedule, None)
-        self.assertTrue(isinstance(tm.schedule, schedules.OnUpdateSchedule))
-        self.assertEqual(tm.schedule.activation_metrics, [])
-        self.assertEqual(tm.schedule.exec_on_load, False)
-        self.assertIsNotNone(getattr(tm,'f',None))
-        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
-        tm_info = tmIndex.get_tm_info(tm.mid)
-        self.assertEqual(tm_info['enabled'], False)
-        self.assertEqual(tm_info['tm'], tm)
-        tm.unbind()
-        tm_info = tmIndex.get_tm_info(tm.mid)
-        self.assertIsNone(tm_info)
+        try:
+            async def enable_tm(mid):
+                return True
+            enable_tm_bck = tmIndex.enable_tm
+            tmIndex.enable_tm = enable_tm
+            def func(param):
+                pass
+            tm=transfer_methods.transfermethod(f=func, f_params={'param':'param'})
+            self.assertTrue(isinstance(tm.mid,uuid.UUID))
+            self.assertEqual(tm._f, func)
+            self.assertEqual(tm.schedule, None)
+            self.assertEqual(tm.f_params, {'param':'param'})
+            await tm.bind()
+            self.assertEqual(tm._func_params.keys(), {'param':'param'}.keys())
+            self.assertNotEqual(tm.schedule, None)
+            self.assertTrue(isinstance(tm.schedule, schedules.OnUpdateSchedule))
+            self.assertEqual(tm.schedule.activation_metrics, [])
+            self.assertEqual(tm.schedule.exec_on_load, False)
+            self.assertIsNotNone(getattr(tm,'f',None))
+            self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+            tm_info = tmIndex.get_tm_info(tm.mid)
+            self.assertEqual(tm_info['enabled'], False)
+            self.assertEqual(tm_info['tm'], tm)
+            tm.unbind()
+            tm_info = tmIndex.get_tm_info(tm.mid)
+            self.assertIsNone(tm_info)
+        except:
+            raise
+        finally:
+            tmIndex.enable_tm = enable_tm_bck
 
     def test_run_transfermethod_failure_not_decorated_or_binded_function_found(self):
         ''' calling run should fail if tm has not associated function '''
@@ -257,33 +307,43 @@ class ApiTransferMethodsTest(unittest.TestCase):
         metrics = []
         loop.run_until_complete(tm.run(ts,metrics))
 
-    def test_run_transfermethod_success_binded_tm(self):
+    @test.sync(loop)
+    async def test_run_transfermethod_success_binded_tm(self):
         ''' calling run should execute the tm associated function '''
-        var = 0
-        def func(param):
-            nonlocal var
-            var += param
-        tm=transfer_methods.transfermethod(f=func, f_params={'param':5}, schedule=schedules.DummySchedule())
-        self.assertTrue(isinstance(tm.mid,uuid.UUID))
-        self.assertEqual(tm._f, func)
-        self.assertNotEqual(tm.schedule, None)
-        self.assertTrue(isinstance(tm.schedule, schedules.DummySchedule))
-        self.assertEqual(tm.f_params, {'param':5})
-        tm.bind()
-        self.assertEqual(tm._func_params.keys(), {'param':5}.keys())
-        self.assertNotEqual(tm.schedule, None)
-        self.assertTrue(isinstance(tm.schedule, schedules.DummySchedule))
-        self.assertEqual(tm.schedule.activation_metrics, [])
-        self.assertEqual(tm.schedule.exec_on_load, False)
-        self.assertIsNotNone(getattr(tm,'f',None))
-        self.assertTrue(asyncio.iscoroutinefunction(tm.f))
-        tm_info = tmIndex.get_tm_info(tm.mid)
-        self.assertEqual(tm_info['enabled'], False)
-        self.assertEqual(tm_info['tm'], tm)
-        ts = pd.Timestamp('now',tz='utc')
-        metrics = []
-        loop.run_until_complete(tm.run(ts,metrics))
-        self.assertEqual(var,5)
+        try:
+            async def enable_tm(mid):
+                return True
+            enable_tm_bck = tmIndex.enable_tm
+            tmIndex.enable_tm = enable_tm
+            var = 0
+            def func(param):
+                nonlocal var
+                var += param
+            tm=transfer_methods.transfermethod(f=func, f_params={'param':5}, schedule=schedules.DummySchedule())
+            self.assertTrue(isinstance(tm.mid,uuid.UUID))
+            self.assertEqual(tm._f, func)
+            self.assertNotEqual(tm.schedule, None)
+            self.assertTrue(isinstance(tm.schedule, schedules.DummySchedule))
+            self.assertEqual(tm.f_params, {'param':5})
+            await tm.bind()
+            self.assertEqual(tm._func_params.keys(), {'param':5}.keys())
+            self.assertNotEqual(tm.schedule, None)
+            self.assertTrue(isinstance(tm.schedule, schedules.DummySchedule))
+            self.assertEqual(tm.schedule.activation_metrics, [])
+            self.assertEqual(tm.schedule.exec_on_load, False)
+            self.assertIsNotNone(getattr(tm,'f',None))
+            self.assertTrue(asyncio.iscoroutinefunction(tm.f))
+            tm_info = tmIndex.get_tm_info(tm.mid)
+            self.assertEqual(tm_info['enabled'], False)
+            self.assertEqual(tm_info['tm'], tm)
+            ts = pd.Timestamp('now',tz='utc')
+            metrics = []
+            await tm.run(ts,metrics)
+            self.assertEqual(var,5)
+        except:
+            raise
+        finally:
+            tmIndex.enable_tm = enable_tm_bck
 
     def test_run_transfermethod_success_decorated_tm(self):
         ''' calling run should execute the tm associated function '''

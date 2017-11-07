@@ -32,9 +32,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertTrue(tmi.add_tm(tm))
         self.assertTrue(tm.mid in tmi._disabled_methods)
         loop = asyncio.get_event_loop()
-        tasks = asyncio.Task.all_tasks()
-        for task in tasks:
-            loop.run_until_complete(task)
+        loop.run_until_complete(tmi.enable_tm(tm.mid))
         self.assertTrue(tm.mid in tmi._enabled_methods)
 
     def test_add_tm_failure_already_added(self):
@@ -45,9 +43,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertTrue(tmi.add_tm(tm))
         self.assertTrue(tm.mid in tmi._disabled_methods)
         loop = asyncio.get_event_loop()
-        tasks = asyncio.Task.all_tasks()
-        for task in tasks:
-            loop.run_until_complete(task)
+        loop.run_until_complete(tmi.enable_tm(tm.mid))
         self.assertTrue(tm.mid in tmi._enabled_methods)
         self.assertFalse(tmi.add_tm(tm))
 
@@ -96,7 +92,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertIsNone(tmi._disabled_methods[tm.mid]['first'])
         current_task = asyncio.Task.current_task()
         tasks = asyncio.Task.all_tasks()
-        self.assertEqual(len(tasks),3) #this task, retry task and first enable_tm task
+        self.assertEqual(len(tasks),2) #this task and retry task
         [task.cancel() for task in asyncio.Task.all_tasks() if task != current_task]
 
     @test.sync()
@@ -292,10 +288,10 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         t = timeuuid.TimeUUID()
         current_task = asyncio.Task.current_task()
         tasks = asyncio.Task.all_tasks()
-        self.assertEqual(len(tasks),3) #this task and two enabling tasks
+        self.assertEqual(len(tasks),1) #this task
         tmi.metrics_updated(t=t, metrics=metrics, irt=timeuuid.TimeUUID())
         tasks = asyncio.Task.all_tasks()
-        self.assertEqual(len(tasks),3) #No new task added
+        self.assertEqual(len(tasks),1) #No new task added
         [task.cancel() for task in asyncio.Task.all_tasks() if task != current_task]
 
     @test.sync()
@@ -320,10 +316,10 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         t = timeuuid.TimeUUID()
         current_task = asyncio.Task.current_task()
         tasks = asyncio.Task.all_tasks()
-        self.assertEqual(len(tasks),3) #this task and two enabling tasks
+        self.assertEqual(len(tasks),1) #this task
         tmi.metrics_updated(t=t, metrics=metrics, irt=timeuuid.TimeUUID())
         tasks = asyncio.Task.all_tasks()
-        self.assertEqual(len(tasks),4) #One tm activated
+        self.assertEqual(len(tasks),2) #One tm activated
         [task.cancel() for task in asyncio.Task.all_tasks() if task != current_task]
 
     @test.sync()
@@ -349,10 +345,10 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         t = timeuuid.TimeUUID()
         current_task = asyncio.Task.current_task()
         tasks = asyncio.Task.all_tasks()
-        self.assertEqual(len(tasks),3) #this task and two enabling tasks
+        self.assertEqual(len(tasks),1) #this task
         tmi.metrics_updated(t=t, metrics=metrics, irt=timeuuid.TimeUUID())
         tasks = asyncio.Task.all_tasks()
-        self.assertEqual(len(tasks),5) #One tm activated
+        self.assertEqual(len(tasks),3) #two tm activated
         [task.cancel() for task in asyncio.Task.all_tasks() if task != current_task]
 
     @test.sync()
@@ -514,10 +510,10 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertIsNone(tmi._disabled_methods[tm.mid]['first'])
         current_task = asyncio.Task.current_task()
         tasks = asyncio.Task.all_tasks()
-        self.assertEqual(len(tasks),3) #this task, retry task and first enable_tm task
+        self.assertEqual(len(tasks),2) #this task and retry task
         tm.schedule = OnUpdateSchedule()
         self.assertTrue(await tmi._retry_failed(sleep=1))
         tasks = asyncio.Task.all_tasks()
-        self.assertEqual(len(tasks),3) # no new task
+        self.assertEqual(len(tasks),2) # no new task
         [task.cancel() for task in asyncio.Task.all_tasks() if task != current_task]
 

@@ -88,15 +88,18 @@ class transfermethod:
     def __call__(self, f):
         self._decorate_method(f)
         logging.logger.debug('Registering decorated transfer method '+self.mid.hex)
-        tmIndex.add_tm(tm=self)
+        if tmIndex.add_tm(tm=self):
+            asyncio.ensure_future(tmIndex.enable_tm(self.mid))
         return f
 
-    def bind(self):
+    async def bind(self):
         if self._f is None:
             raise exceptions.BadParametersException('No function associated to transfermethod object')
         self._decorate_method(self._f)
         logging.logger.debug('Binding transfer method '+self.mid.hex)
-        tmIndex.add_tm(tm=weakref.proxy(self))
+        if tmIndex.add_tm(tm=weakref.proxy(self)):
+            return await tmIndex.enable_tm(mid=self.mid)
+        return False
 
     def unbind(self):
         logging.logger.debug('Unbinding transfer method '+self.mid.hex)

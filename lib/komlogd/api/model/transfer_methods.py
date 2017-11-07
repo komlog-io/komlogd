@@ -20,7 +20,6 @@ class TransferMethodsIndex:
         if self.get_tm_info(tm.mid):
             return False
         self._disabled_methods[tm.mid]={'tm':tm, 'first':None}
-        asyncio.ensure_future(self.enable_tm(tm.mid))
         return True
 
     async def enable_tm(self, mid):
@@ -147,8 +146,10 @@ class TransferMethodsIndex:
             return False
         self._retry_task = asyncio.Task.current_task()
         await asyncio.sleep(sleep)
-        for mid,tm_info in self._disabled_methods.items():
-            if tm_info['first'] == None:
+        mids = list(self._disabled_methods.keys())
+        for mid in mids:
+            tm_info = self._disabled_methods.get(mid,{})
+            if 'first' in tm_info and tm_info['first'] == None:
                 if not await self.enable_tm(mid):
                     # enable_tm should have generated another retry_task
                     return False
