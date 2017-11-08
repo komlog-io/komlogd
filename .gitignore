@@ -1,6 +1,7 @@
 build
 dist
 __pycache__/
+.tox/
 *.py[cod]
 *.swp
 *.swo
