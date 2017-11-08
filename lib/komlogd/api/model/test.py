@@ -6,6 +6,8 @@ def sync(loop=None, tr_support=False):
     ''' decorator for transforming coroutines into functions. '''
     def wrap(coro):
         def wrapped(*args, **kwargs):
+            if not loop:
+                print('NO LOOP')
             int_loop = loop or asyncio.new_event_loop()
             int_loop.run_until_complete(coro(*args, **kwargs))
             int_loop.close() if not loop else None

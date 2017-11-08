@@ -16,8 +16,7 @@ from komlogd.api.model.session import sessionIndex
 from unittest.mock import call, Mock, patch
 from komlogd.api.model.transactions import TransactionTask
 
-loop = asyncio.new_event_loop()
-loop.set_task_factory(lambda loop, coro: TransactionTask(coro, loop=loop))
+loop = asyncio.get_event_loop()
 
 class ApiProtocolProcessingMessageTest(unittest.TestCase):
 

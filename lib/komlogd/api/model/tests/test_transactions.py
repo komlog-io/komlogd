@@ -9,12 +9,12 @@ from komlogd.api.model import test
 from komlogd.api.model.transactions import Transaction, TransactionTask
 from komlogd.api.model.session import sessionIndex
 
+loop = asyncio.get_event_loop()
+
 class ApiModelTransactionsTest(unittest.TestCase):
 
     def test_TransactionTask_has_tr_attribute(self):
         ''' check that a transactional task has a tr parameter '''
-        loop = asyncio.new_event_loop()
-        loop.set_task_factory(lambda loop, coro: TransactionTask(coro, loop=loop))
         async def function():
             pass
         @test.sync(loop)
@@ -23,12 +23,9 @@ class ApiModelTransactionsTest(unittest.TestCase):
             task = TransactionTask(coro=function(), tr=tr)
             self.assertEqual(task.get_tr(), tr)
         task_test()
-        loop.close()
 
     def test_TransactionTask_has_tr_attribute_None(self):
         ''' check that normal tasks has tr parameter if they run in a supported loop '''
-        loop = asyncio.new_event_loop()
-        loop.set_task_factory(lambda loop, coro: TransactionTask(coro, loop=loop))
         async def function():
             pass
         @test.sync(loop)
@@ -36,21 +33,20 @@ class ApiModelTransactionsTest(unittest.TestCase):
             task = loop.create_task(function())
             self.assertEqual(task.get_tr(), None)
         task_test()
-        loop.close()
 
     def test_TransactionTask_has_no_tr_attribute(self):
         ''' the loop must support TransactionTask or will fail '''
-        loop = asyncio.new_event_loop()
+        loop2 = asyncio.new_event_loop()
         #loop.set_task_factory(lambda loop, coro: TransactionTask(coro, loop=loop))
         async def function():
             pass
-        @test.sync(loop)
+        @test.sync(loop2)
         async def task_test():
-            task = loop.create_task(function())
+            task = loop2.create_task(function())
             with self.assertRaises(AttributeError) as cm:
                 self.assertEqual(task.get_tr(), None)
         task_test()
-        loop.close()
+        loop2.close()
 
     def test_create_Transaction_object(self):
         ''' Check creation of a new Transaction object '''
@@ -61,7 +57,7 @@ class ApiModelTransactionsTest(unittest.TestCase):
         self.assertEqual(tr.t, t)
         self.assertEqual(tr._dirty, set())
 
-    @test.sync()
+    @test.sync(loop)
     async def test_commit_transaction(self):
         ''' Commit transaction should execute _tr_commit coroutines for each dirty item '''
         class MyInterface:
@@ -96,7 +92,7 @@ class ApiModelTransactionsTest(unittest.TestCase):
         [self.assertEqual(item._counter,-1) for item in interfaces]
         self.assertEqual(tr._dirty, set())
 
-    @test.sync()
+    @test.sync(loop)
     async def test_discard_transaction_deletes_items_cannot_commit_after_that(self):
         ''' Discarding a transaction will remove all dirty items and disable any later commit '''
         class MyInterface:
@@ -117,7 +113,7 @@ class ApiModelTransactionsTest(unittest.TestCase):
         await tr.commit()
         [self.assertEqual(item._counter,-1) for item in interfaces]
 
-    @test.sync()
+    @test.sync(loop)
     async def test_discard_transaction_automatically_if_out_of_context(self):
         ''' at context exit, discard() will be called on the Transaction object automatically '''
         class MyInterface:

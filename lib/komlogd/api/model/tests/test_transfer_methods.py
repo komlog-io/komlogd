@@ -10,6 +10,8 @@ from komlogd.api.model.metrics import Datasource, Datapoint
 from komlogd.api.model.schedules import OnUpdateSchedule, CronSchedule
 from komlogd.api.model.transfer_methods import TransferMethodsIndex
 
+loop = asyncio.get_event_loop()
+
 def noop():
     pass
 
@@ -47,7 +49,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertTrue(tm.mid in tmi._enabled_methods)
         self.assertFalse(tmi.add_tm(tm))
 
-    @test.sync()
+    @test.sync(loop)
     async def test_enable_tm_failure_non_existing_mid(self):
         ''' enable_tm should fail if mid does not exist '''
         tmi = TransferMethodsIndex()
@@ -55,7 +57,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         result = await tmi.enable_tm(mid)
         self.assertFalse(result)
 
-    @test.sync()
+    @test.sync(loop)
     async def test_enable_tm_failure_already_enabled(self):
         ''' enable_tm should fail if tm is already enabled '''
         tm = transfer_methods.transfermethod(f=noop)
@@ -67,7 +69,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertTrue(tm.mid in tmi._enabled_methods)
         self.assertFalse(await tmi.enable_tm(tm.mid))
 
-    @test.sync()
+    @test.sync(loop)
     async def test_enable_tm_success(self):
         ''' enable_tm should enable the tm and set the enabling date '''
         tm = transfer_methods.transfermethod(f=noop)
@@ -79,7 +81,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertTrue(tm.mid in tmi._enabled_methods)
         self.assertIsNotNone(tmi._enabled_methods[tm.mid]['first'])
 
-    @test.sync()
+    @test.sync(loop)
     async def test_enable_tm_failure_cannot_hook_metric(self):
         ''' enable_tm should fail if we cannot hook to a metric.It should generate a retry task '''
         tm = transfer_methods.transfermethod(f=noop, schedule=OnUpdateSchedule(Datasource('uri')))
@@ -95,7 +97,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertEqual(len(tasks),2) #this task and retry task
         [task.cancel() for task in asyncio.Task.all_tasks() if task != current_task]
 
-    @test.sync()
+    @test.sync(loop)
     async def test_disable_tm_success(self):
         ''' disable_tm should disable the tm '''
         tm = transfer_methods.transfermethod(f=noop)
@@ -110,7 +112,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertFalse(tm.mid in tmi._enabled_methods)
         self.assertTrue(tm.mid in tmi._disabled_methods)
 
-    @test.sync()
+    @test.sync(loop)
     async def test_disable_tm_failure_already_disabled(self):
         ''' disable_tm should fail if tm is already disabled '''
         tm = transfer_methods.transfermethod(f=noop)
@@ -132,7 +134,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         tmi = TransferMethodsIndex()
         self.assertFalse(tmi.disable_tm(mid))
 
-    @test.sync()
+    @test.sync(loop)
     async def test_delete_tm_success_previously_enabled(self):
         ''' delete_tm should delete a previously enabled tm '''
         tm = transfer_methods.transfermethod(f=noop)
@@ -148,7 +150,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertFalse(tm.mid in tmi._disabled_methods)
         self.assertIsNone(tmi.get_tm_info(tm.mid))
 
-    @test.sync()
+    @test.sync(loop)
     async def test_delete_tm_success_previously_disabled(self):
         ''' delete_tm should delete a previously disabled tm '''
         tm = transfer_methods.transfermethod(f=noop)
@@ -167,7 +169,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertFalse(tm.mid in tmi._disabled_methods)
         self.assertIsNone(tmi.get_tm_info(tm.mid))
 
-    @test.sync()
+    @test.sync(loop)
     async def test_delete_tm_success_previously_deleted(self):
         ''' delete_tm should return True if tm did not exist already '''
         tm = transfer_methods.transfermethod(f=noop)
@@ -187,7 +189,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertIsNone(tmi.get_tm_info(tm.mid))
         self.assertTrue(tmi.delete_tm(tm.mid))
 
-    @test.sync()
+    @test.sync(loop)
     async def test_enable_all_success(self):
         ''' enable_all should enable all disabled transfer methods '''
         tm1 = transfer_methods.transfermethod(f=noop)
@@ -205,7 +207,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertIsNotNone(tmi._enabled_methods[tm1.mid]['first'])
         self.assertIsNotNone(tmi._enabled_methods[tm2.mid]['first'])
 
-    @test.sync()
+    @test.sync(loop)
     async def test_disable_all_success(self):
         ''' disable_all should disable all enabled transfer methods '''
         tm1 = transfer_methods.transfermethod(f=noop)
@@ -230,7 +232,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertIsNotNone(tmi._disabled_methods[tm1.mid]['first'])
         self.assertIsNotNone(tmi._disabled_methods[tm2.mid]['first'])
 
-    @test.sync()
+    @test.sync(loop)
     async def test_get_tm_info_success(self):
         ''' get_tm_info should return information about the tm '''
         tm1 = transfer_methods.transfermethod(f=noop)
@@ -267,7 +269,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertEqual(tm2_info['enabled'],False)
         self.assertEqual(tm2_info['tm'], tm2)
 
-    @test.sync()
+    @test.sync(loop)
     async def test_metrics_updated_no_tm_activated_with_them(self):
         ''' metrics_updated should not generate any task if no tm is activated with those mets '''
         tm1 = transfer_methods.transfermethod(f=noop)
@@ -294,7 +296,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertEqual(len(tasks),1) #No new task added
         [task.cancel() for task in asyncio.Task.all_tasks() if task != current_task]
 
-    @test.sync()
+    @test.sync(loop)
     async def test_metrics_updated_one_tm_activated_with_them(self):
         ''' metrics_updated should generate one new task '''
         tm1 = transfer_methods.transfermethod(f=noop)
@@ -322,7 +324,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertEqual(len(tasks),2) #One tm activated
         [task.cancel() for task in asyncio.Task.all_tasks() if task != current_task]
 
-    @test.sync()
+    @test.sync(loop)
     async def test_metrics_updated_two_tm_activated_with_them(self):
         ''' metrics_updated should generate two new tasks '''
         tm1 = transfer_methods.transfermethod(f=noop)
@@ -351,7 +353,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertEqual(len(tasks),3) #two tm activated
         [task.cancel() for task in asyncio.Task.all_tasks() if task != current_task]
 
-    @test.sync()
+    @test.sync(loop)
     async def test_get_tms_activated_with_none_found(self):
         ''' _get_tms_activated_with should return [] if no tm is activated with these metrics '''
         tm1 = transfer_methods.transfermethod(f=noop)
@@ -371,7 +373,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         metrics = [Datasource('uri'),Datasource('uri2')]
         self.assertEqual(tmi._get_tms_activated_with(metrics), [])
 
-    @test.sync()
+    @test.sync(loop)
     async def test_get_tms_activated_with_some_found(self):
         ''' _get_tms_activated_with should return the tms activated with these metrics '''
         tm1 = transfer_methods.transfermethod(f=noop)
@@ -396,7 +398,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertTrue(tm1 in activated)
         self.assertTrue(tm2 in activated)
 
-    @test.sync()
+    @test.sync(loop)
     async def test_get_tms_activated_with_some_found_no_repeat(self):
         ''' _get_tms_activated_with should return the tms activated with these metrics each only once '''
         tm1 = transfer_methods.transfermethod(f=noop)
@@ -425,7 +427,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertTrue(tm1 in activated)
         self.assertTrue(tm2 in activated)
 
-    @test.sync()
+    @test.sync(loop)
     async def test_get_tms_that_meet_none_found(self):
         ''' _get_tms_that_meet should return [] if no tm meets that schedule '''
         tm1 = transfer_methods.transfermethod(f=noop)
@@ -445,7 +447,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         t = time.localtime()
         self.assertEqual(tmi._get_tms_that_meet(t=t), [])
 
-    @test.sync()
+    @test.sync(loop)
     async def test_get_tms_that_meet_some_found(self):
         ''' _get_tms_that_meet should return the tms that meet the schedule '''
         tm1 = transfer_methods.transfermethod(f=noop)
@@ -472,13 +474,13 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertTrue(tm1 in meet_tms)
         self.assertTrue(tm2 in meet_tms)
 
-    @test.sync()
+    @test.sync(loop)
     async def test_retry_failed_success_no_disabled_tms(self):
         ''' retry_failed should return True if no disabled tms exist '''
         tmi = TransferMethodsIndex()
         self.assertTrue(await tmi._retry_failed(sleep=1))
 
-    @test.sync()
+    @test.sync(loop)
     async def test_retry_failed_failure_cannot_hook_metric(self):
         ''' retry_failed should fail if we cannot enable a tm. It should generate a retry task '''
         tm = transfer_methods.transfermethod(f=noop, schedule=OnUpdateSchedule(Datasource('uri')))
@@ -497,7 +499,7 @@ class ApiModelTransferMethodsTest(unittest.TestCase):
         self.assertEqual(len(tasks),4) # a new retry task has been generated
         [task.cancel() for task in asyncio.Task.all_tasks() if task != current_task]
 
-    @test.sync()
+    @test.sync(loop)
     async def test_retry_failed_failure_cannot_hook_metric(self):
         ''' retry_failed should fail if we cannot enable a tm. It should generate a retry task '''
         tm = transfer_methods.transfermethod(f=noop, schedule=OnUpdateSchedule(Datasource('uri')))

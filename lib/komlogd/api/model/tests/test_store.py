@@ -14,8 +14,7 @@ from komlogd.api.model.metrics import Datasource, Datapoint, Sample
 from komlogd.api.model.transactions import TransactionTask, Transaction
 from komlogd.api.model.session import sessionIndex
 
-loop = asyncio.new_event_loop()
-loop.set_task_factory(lambda loop, coro: TransactionTask(coro, loop=loop))
+loop = asyncio.get_event_loop()
 
 class ApiModelStoreTest(unittest.TestCase):
 
@@ -2151,10 +2150,12 @@ class ApiModelStoreTest(unittest.TestCase):
             self.assertEqual(prproc.send_samples.call_count,1)
             expected_send = [Sample(r['metric'],r['t'],r['value']) for r in tr_df_inserts_f]
             self.assertEqual(len(prproc.send_samples.call_args[0][0]), len(expected_send))
+            samples_sent = prproc.send_samples.call_args[0][0]
+            samples_sent = sorted(samples_sent, key = lambda x: x.metric.uri)
             for i,reg in enumerate(tr_df_inserts_f):
-                self.assertEqual(reg['metric'],prproc.send_samples.call_args[0][0][i].metric)
-                self.assertEqual(reg['t'],prproc.send_samples.call_args[0][0][i].t)
-                self.assertEqual(reg['value'],prproc.send_samples.call_args[0][0][i].value)
+                self.assertEqual(reg['metric'],samples_sent[i].metric)
+                self.assertEqual(reg['t'],samples_sent[i].t)
+                self.assertEqual(reg['value'],samples_sent[i].value)
             prproc.send_samples = bck
         except:
             prproc.send_samples = bck
