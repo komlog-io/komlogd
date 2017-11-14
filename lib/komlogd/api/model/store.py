@@ -56,11 +56,20 @@ class MetricStore:
         if t != None:
             its = t
             ets = t
+        elif start == None and end == None:
+            raise ValueError('You must set at least start or end')
+        elif (start == None or end == None) and count == None:
+            raise ValueError('count parameter must be set if you leave interval open')
         else:
             its = start
             ets = end
-        for r in self._get_missing_ranges(metric, its=its, ets=ets):
-            await self._request_data_range(metric, r['its'], r['ets'], count)
+        total_regs = 0
+        for r in self._get_missing_ranges(metric, its=its, ets=ets, count=count):
+            resp = await self._request_data_range(metric, r['its'], r['ets'], count)
+            if count:
+                total_regs += resp['count']
+                if count <= total_regs:
+                    break
         return self._get_metric_data(metric, its, ets, count)
 
     async def _request_data_range(self, metric, its, ets, count):
@@ -93,6 +102,7 @@ class MetricStore:
                     ets = timeuuid.MAX_TIMEUUID
         if its and ets:
             self._add_synced_range(metric, time.monotonic(), its, ets, tid)
+        return {'count':len(d)}
 
     def _store(self, metric, t, value, tm, op=None, tid=None):
         if isinstance(value, decimal.Decimal):
@@ -116,7 +126,61 @@ class MetricStore:
                 self._dfs[metric] = df
             df.loc[tm]=[t, tmp_value]
 
-    def _get_missing_ranges(self, metric, its, ets):
+    def _get_missing_ranges(self, metric, its, ets, count):
+        def get_missing_open_interval(ranges):
+            missing = []
+            t = its if its != None else ets
+            current_range = None
+            for r in ranges:
+                if ets and t <= r['ets'] and t > r['its']:
+                    current_range = r
+                    break
+                elif its and t < r['ets'] and t >= r['its']:
+                    current_range = r
+                    break
+            if current_range:
+                r_border = current_range['its'] if ets else current_range['ets']
+                t1, t2 = (t,r_border) if its else (r_border,t)
+                elem = self._get_metric_data(metric, its=t1, ets=t2, count=count)
+                if elem is not None and len(elem) < count:
+                    new_count = count - len(elem)
+                    if its == None and r_border > timeuuid.MIN_TIMEUUID:
+                        missing_range = self._get_missing_ranges(metric, its=its, ets=r_border, count=new_count)
+                        missing.extend(missing_range)
+                    elif ets == None and r_border < timeuuid.MAX_TIMEUUID:
+                        missing_range = self._get_missing_ranges(metric, its=r_border, ets=ets, count=new_count)
+                        missing.extend(missing_range)
+            else:
+                r_border = None
+                if its:
+                    for r in ranges:
+                        if r['its'] > its and r['its'] < timeuuid.MAX_TIMEUUID:
+                            if r_border == None:
+                                r_border = r['its']
+                            elif r['its'] < r_border:
+                                r_border = r['its']
+                    if not r_border:
+                        r_border = timeuuid.MAX_TIMEUUID
+                    missing_range = {'its':its, 'ets':r_border}
+                    missing.append(missing_range)
+                    if r_border < timeuuid.MAX_TIMEUUID:
+                        next_missing = self._get_missing_ranges(metric, its=r_border, ets=ets, count=count)
+                        missing.extend(next_missing)
+                elif ets:
+                    for r in ranges:
+                        if r['ets'] < ets and r['ets'] > timeuuid.MIN_TIMEUUID:
+                            if r_border == None:
+                                r_border = r['ets']
+                            elif r['ets'] > r_border:
+                                r_border = r['ets']
+                    if not r_border:
+                        r_border = timeuuid.MIN_TIMEUUID
+                    missing_range = {'its':r_border, 'ets':ets}
+                    missing.append(missing_range)
+                    if r_border > timeuuid.MIN_TIMEUUID:
+                        next_missing = self._get_missing_ranges(metric, its=its, ets=r_border, count=count)
+                        missing.extend(next_missing)
+            return missing
         def get_missing(ranges):
             missing = [{'its':its, 'ets':ets}]
             while True:
@@ -169,12 +233,14 @@ class MetricStore:
             if m_ranges == None:
                 m_ranges = [r for r in self._synced_ranges.get(metric, []) if r['t']<=tr.tm]
                 ranges[metric] = m_ranges
-            missing = get_missing(m_ranges)
         else:
             m_ranges = self._synced_ranges.get(metric, None)
             if m_ranges == None:
                 m_ranges = []
                 self._synced_ranges[metric] = m_ranges
+        if (its == None or ets == None) and count != None:
+            missing = get_missing_open_interval(m_ranges)
+        else:
             missing = get_missing(m_ranges)
         return missing
 
@@ -226,6 +292,14 @@ class MetricStore:
             self._synced_ranges[metric] = new_ranges
 
     def _get_metric_data(self, metric, its, ets, count):
+        if its == None:
+            its = timeuuid.MIN_TIMEUUID
+        if ets == None:
+            ets = timeuuid.MAX_TIMEUUID
+        if count and ets == None:
+            ascending = False
+        else:
+            ascending = True
         tr = asyncio.Task.current_task().get_tr()
         if tr:
             # get transaction dataframe if exists
@@ -254,10 +328,10 @@ class MetricStore:
             return None
         else:
             s = pd.Series(index=join_df.t, data=join_df.value.values)
-            s = s[~s.index.duplicated(keep='last')].sort_index()
+            s = s[~s.index.duplicated(keep='last')].sort_index(ascending=ascending)
             s.name = metric
             if count != None:
-                return s.iloc[:-count]
+                return s.iloc[-count:]
             return s
 
     async def hook(self, metric):

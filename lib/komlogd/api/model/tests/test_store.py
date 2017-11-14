@@ -296,46 +296,31 @@ class ApiModelStoreTest(unittest.TestCase):
         metric = Datapoint('uri')
         start = None
         end = TimeUUID()
-        bck = prproc.request_data
-        prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':[],'error':None})
-        self.assertIsNone(await ms.get(metric, start=start, end=end))
-        self.assertEqual(prproc.request_data.call_count, 1)
-        prproc.request_data.assert_called_with(metric,start,end,None)
-        self.assertTrue(metric in ms._synced_ranges)
-        self.assertEqual(ms._synced_ranges[metric],[])
-        prproc.request_data = bck
+        with self.assertRaises(ValueError) as cm:
+            await ms.get(metric, start=start, end=end)
+        self.assertTrue(metric not in ms._synced_ranges)
 
     @test.sync(loop)
     async def test_get_no_data_no_hooked_end_none(self):
         ''' get data should return None if no data is found '''
         ms = MetricStore()
         metric = Datapoint('uri')
-        start = TimeUUID()
-        end = None
-        bck = prproc.request_data
-        prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':[],'error':None})
-        self.assertIsNone(await ms.get(metric, start=start, end=end))
-        self.assertEqual(prproc.request_data.call_count, 1)
-        prproc.request_data.assert_called_with(metric,start,end,None)
-        self.assertTrue(metric in ms._synced_ranges)
-        self.assertEqual(ms._synced_ranges[metric],[])
-        prproc.request_data = bck
+        start = None
+        end = TimeUUID()
+        with self.assertRaises(ValueError) as cm:
+            await ms.get(metric, start=start, end=end)
+        self.assertTrue(metric not in ms._synced_ranges)
 
     @test.sync(loop)
-    async def test_get_no_data_no_hooked_no_interval_passed(self):
+    async def test_get_no_data_no_interval_passed(self):
         ''' get data should return None if no data is found '''
         ms = MetricStore()
         metric = Datapoint('uri')
         start = None
         end = None
-        bck = prproc.request_data
-        prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':[],'error':None})
-        self.assertIsNone(await ms.get(metric, start=start, end=end))
-        self.assertEqual(prproc.request_data.call_count, 1)
-        prproc.request_data.assert_called_with(metric,None,None,None)
-        self.assertTrue(metric in ms._synced_ranges)
-        self.assertEqual(ms._synced_ranges[metric],[])
-        prproc.request_data = bck
+        with self.assertRaises(ValueError) as cm:
+            await ms.get(metric, start=start, end=end)
+        self.assertTrue(metric not in ms._synced_ranges)
 
     @test.sync(loop)
     async def test_get_no_data_but_hooked(self):
@@ -355,36 +340,36 @@ class ApiModelStoreTest(unittest.TestCase):
         prproc.request_data = bck
 
     @test.sync(loop)
-    async def test_get_no_data_but_hooked_start_none(self):
+    async def test_get_no_data_but_hooked_start_MIN_TIMEUUID(self):
         ''' get data should return None if no data is found '''
         ms = MetricStore()
         metric = Datapoint('uri')
         ms._hooked.add(metric)
-        start = None
+        start = MIN_TIMEUUID
         end = TimeUUID()
         bck = prproc.request_data
         prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':[],'error':None})
         self.assertIsNone(await ms.get(metric, start=start, end=end))
         self.assertEqual(prproc.request_data.call_count, 1)
-        prproc.request_data.assert_called_with(metric,None,end,None)
+        prproc.request_data.assert_called_with(metric,start,end,None)
         self.assertTrue(metric in ms._synced_ranges)
         self.assertEqual(ms._synced_ranges[metric][0]['its'],MIN_TIMEUUID)
         self.assertEqual(ms._synced_ranges[metric][0]['ets'],end)
         prproc.request_data = bck
 
     @test.sync(loop)
-    async def test_get_no_data_but_hooked_end_none(self):
+    async def test_get_no_data_but_hooked_end_MAX_TIMEUUID(self):
         ''' get data should return None if no data is found '''
         ms = MetricStore()
         metric = Datapoint('uri')
         ms._hooked.add(metric)
         start = TimeUUID()
-        end = None
+        end = MAX_TIMEUUID
         bck = prproc.request_data
         prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':[],'error':None})
         self.assertIsNone(await ms.get(metric, start=start, end=end))
         self.assertEqual(prproc.request_data.call_count, 1)
-        prproc.request_data.assert_called_with(metric,start,None,None)
+        prproc.request_data.assert_called_with(metric,start,end,None)
         self.assertTrue(metric in ms._synced_ranges)
         self.assertEqual(ms._synced_ranges[metric][0]['its'],start)
         self.assertEqual(ms._synced_ranges[metric][0]['ets'],MAX_TIMEUUID)
@@ -399,13 +384,16 @@ class ApiModelStoreTest(unittest.TestCase):
         data_t = TimeUUID()
         data_v = 332
         count = 1
-        start = None
-        end = None
+        start = MIN_TIMEUUID
+        end = MAX_TIMEUUID
         bck = prproc.request_data
         prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':[(data_t,data_v)],'error':None})
-        self.assertIsNone(await ms.get(metric, start=start, end=end, count=count))
+        data = await ms.get(metric, start=start, end=end, count=count)
+        self.assertTrue(len(data)==1)
+        self.assertEqual(data.index[0], data_t)
+        self.assertEqual(data[0], data_v)
         self.assertEqual(prproc.request_data.call_count, 1)
-        prproc.request_data.assert_called_with(metric,None,None,1)
+        prproc.request_data.assert_called_with(metric,MIN_TIMEUUID,MAX_TIMEUUID,1)
         self.assertTrue(metric in ms._synced_ranges)
         self.assertEqual(ms._synced_ranges[metric][0]['its'],data_t)
         self.assertEqual(ms._synced_ranges[metric][0]['ets'],data_t)
@@ -417,20 +405,21 @@ class ApiModelStoreTest(unittest.TestCase):
 
     @test.sync(loop)
     async def test_get_some_data_but_hooked_count_not_reached(self):
-        ''' get data should return None if no data is found '''
+        ''' get data should return as much items as available '''
         ms = MetricStore()
         metric = Datapoint('uri')
         ms._hooked.add(metric)
         data_t = TimeUUID()
         data_v = 332
         count = 2
-        start = None
-        end = None
+        start = MIN_TIMEUUID
+        end = MAX_TIMEUUID
         bck = prproc.request_data
         prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':[(data_t,data_v)],'error':None})
-        self.assertIsNone(await ms.get(metric, start=start, end=end, count=count))
+        data = await ms.get(metric, start=start, end=end, count=count)
+        self.assertEqual(len(data),1)
         self.assertEqual(prproc.request_data.call_count, 1)
-        prproc.request_data.assert_called_with(metric,None,None,2)
+        prproc.request_data.assert_called_with(metric,MIN_TIMEUUID,MAX_TIMEUUID,2)
         self.assertTrue(metric in ms._synced_ranges)
         self.assertEqual(ms._synced_ranges[metric][0]['its'],MIN_TIMEUUID)
         self.assertEqual(ms._synced_ranges[metric][0]['ets'],MAX_TIMEUUID)
@@ -496,8 +485,8 @@ class ApiModelStoreTest(unittest.TestCase):
         ''' _request_data_range should fail if no session is found '''
         ms = MetricStore()
         metric = Datapoint('test_request_data_range_failure_no_session_found')
-        its = None
-        ets = None
+        its = MIN_TIMEUUID
+        ets = MAX_TIMEUUID
         count = None
         sessionIndex.sessions = []
         with self.assertRaises(exceptions.SessionNotFoundException) as cm:
@@ -518,7 +507,8 @@ class ApiModelStoreTest(unittest.TestCase):
         ms._add_synced_range = test.Mock(result_value = True)
         async def f():
             nonlocal ms, its, ets, count
-            await ms._request_data_range(metric, its, ets, count)
+            resp = await ms._request_data_range(metric, its, ets, count)
+            self.assertEqual(resp['count'],0)
         async with Transaction(t) as tr:
             await TransactionTask(coro=f(), tr=tr)
             self.assertTrue(ms in tr._dirty)
@@ -545,7 +535,8 @@ class ApiModelStoreTest(unittest.TestCase):
         prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':[],'error':None})
         ms._store = test.Mock(result_value = True)
         ms._add_synced_range = test.Mock(result_value = True)
-        await ms._request_data_range(metric, its, ets, count)
+        resp = await ms._request_data_range(metric, its, ets, count)
+        self.assertEqual(resp['count'],0)
         self.assertEqual(prproc.request_data.call_count, 1)
         prproc.request_data.assert_called_with(metric,None,None,None)
         self.assertEqual(ms._store.call_count,0)
@@ -572,7 +563,8 @@ class ApiModelStoreTest(unittest.TestCase):
         ms._add_synced_range = test.Mock(result_value = None)
         async def f():
             nonlocal ms, its, ets, count
-            await ms._request_data_range(metric, its, ets, count)
+            resp = await ms._request_data_range(metric, its, ets, count)
+            self.assertEqual(resp['count'],3)
         async with Transaction(t) as tr:
             await TransactionTask(coro=f(), tr=tr)
             self.assertTrue(ms in tr._dirty)
@@ -606,7 +598,8 @@ class ApiModelStoreTest(unittest.TestCase):
         prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':data,'error':None})
         ms._store = test.Mock(result_value = None)
         ms._add_synced_range = test.Mock(result_value = None)
-        await ms._request_data_range(metric, its, ets, count)
+        resp = await ms._request_data_range(metric, its, ets, count)
+        self.assertEqual(resp['count'],3)
         self.assertEqual(prproc.request_data.call_count, 1)
         prproc.request_data.assert_called_with(metric,None,None,None)
         self.assertEqual(ms._store.call_count,3)
@@ -697,7 +690,8 @@ class ApiModelStoreTest(unittest.TestCase):
         ets = TimeUUID(100)
         ms = MetricStore()
         metric = Datapoint('uri')
-        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets)
+        count = None
+        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets, count=count)
         self.assertEqual(missing,[{'its':its, 'ets':ets}])
 
     @test.sync(loop)
@@ -708,6 +702,7 @@ class ApiModelStoreTest(unittest.TestCase):
         inner_its = TimeUUID(50)
         inner_ets = TimeUUID(75)
         metric = Datapoint('uri')
+        count = None
         ms = MetricStore()
         ms._hooked.add(metric)
         ms._add_synced_range(metric=metric, t=time.monotonic(), its=inner_its, ets=inner_ets)
@@ -715,7 +710,7 @@ class ApiModelStoreTest(unittest.TestCase):
         self.assertEqual(len(ms._synced_ranges[metric]),1)
         self.assertEqual(ms._synced_ranges[metric][0]['its'],inner_its)
         self.assertEqual(ms._synced_ranges[metric][0]['ets'],inner_ets)
-        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets)
+        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets, count=count)
         self.assertEqual(sorted(missing, key=lambda x:x['its']),[{'its':its, 'ets':inner_its},{'its':inner_ets,'ets':ets}])
 
     @test.sync(loop)
@@ -726,6 +721,7 @@ class ApiModelStoreTest(unittest.TestCase):
         synced_its = TimeUUID(50)
         synced_ets = TimeUUID(175)
         metric = Datapoint('uri')
+        count = None
         ms = MetricStore()
         ms._hooked.add(metric)
         ms._add_synced_range(metric=metric, t=time.monotonic(), its=synced_its, ets=synced_ets)
@@ -733,7 +729,7 @@ class ApiModelStoreTest(unittest.TestCase):
         self.assertEqual(len(ms._synced_ranges[metric]),1)
         self.assertEqual(ms._synced_ranges[metric][0]['its'],synced_its)
         self.assertEqual(ms._synced_ranges[metric][0]['ets'],synced_ets)
-        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets)
+        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets, count=count)
         self.assertEqual(missing,[{'its':its, 'ets':synced_its}])
 
     @test.sync(loop)
@@ -744,6 +740,7 @@ class ApiModelStoreTest(unittest.TestCase):
         synced_its = TimeUUID(1)
         synced_ets = TimeUUID(15)
         metric = Datapoint('uri')
+        count = None
         ms = MetricStore()
         ms._hooked.add(metric)
         ms._add_synced_range(metric=metric, t=time.monotonic(), its=synced_its, ets=synced_ets)
@@ -751,7 +748,7 @@ class ApiModelStoreTest(unittest.TestCase):
         self.assertEqual(len(ms._synced_ranges[metric]),1)
         self.assertEqual(ms._synced_ranges[metric][0]['its'],synced_its)
         self.assertEqual(ms._synced_ranges[metric][0]['ets'],synced_ets)
-        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets)
+        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets, count=count)
         self.assertEqual(missing,[{'its':synced_ets, 'ets':ets}])
 
     @test.sync(loop)
@@ -764,6 +761,7 @@ class ApiModelStoreTest(unittest.TestCase):
         inner_its2 = TimeUUID(60)
         inner_ets2 = TimeUUID(85)
         metric = Datapoint('uri')
+        count = None
         ms = MetricStore()
         ms._hooked.add(metric)
         ms._add_synced_range(metric=metric, t=time.monotonic(), its=inner_its1, ets=inner_ets1)
@@ -774,7 +772,7 @@ class ApiModelStoreTest(unittest.TestCase):
         self.assertEqual(ms._synced_ranges[metric][0]['ets'],inner_ets1)
         self.assertEqual(ms._synced_ranges[metric][1]['its'],inner_its2)
         self.assertEqual(ms._synced_ranges[metric][1]['ets'],inner_ets2)
-        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets)
+        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets, count=count)
         self.assertEqual(sorted(missing, key=lambda x:x['its']),[{'its':its, 'ets':inner_its1},{'its':inner_ets1,'ets':inner_its2},{'its':inner_ets2, 'ets':ets}])
 
     @test.sync(loop)
@@ -788,6 +786,7 @@ class ApiModelStoreTest(unittest.TestCase):
         inner_ets2 = TimeUUID(85)
         others =[(TimeUUID(1),TimeUUID(3)),(TimeUUID(8),TimeUUID(10, lowest=True)),(TimeUUID(100, highest=True),TimeUUID(101))]
         metric = Datapoint('uri')
+        count = None
         ms = MetricStore()
         ms._hooked.add(metric)
         ms._add_synced_range(metric=metric, t=time.monotonic(), its=inner_its1, ets=inner_ets1)
@@ -806,7 +805,7 @@ class ApiModelStoreTest(unittest.TestCase):
         self.assertEqual(ms._synced_ranges[metric][3]['ets'],inner_ets2)
         self.assertEqual(ms._synced_ranges[metric][4]['its'],others[2][0])
         self.assertEqual(ms._synced_ranges[metric][4]['ets'],others[2][1])
-        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets)
+        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets, count=count)
         self.assertEqual(sorted(missing, key=lambda x:x['its']),[{'its':its, 'ets':inner_its1},{'its':inner_ets1,'ets':inner_its2},{'its':inner_ets2, 'ets':ets}])
 
     @test.sync(loop)
@@ -820,6 +819,7 @@ class ApiModelStoreTest(unittest.TestCase):
         inner_ets2 = TimeUUID(85)
         others =[(TimeUUID(1),TimeUUID(3)),(TimeUUID(8),TimeUUID(10, lowest=True)),(TimeUUID(100, highest=True),TimeUUID(101))]
         metric = Datapoint('uri')
+        count = None
         ms = MetricStore()
         ms._hooked.add(metric)
         ms._add_synced_range(metric=metric, t=time.monotonic(), its=inner_its1, ets=inner_ets1)
@@ -838,7 +838,7 @@ class ApiModelStoreTest(unittest.TestCase):
         self.assertEqual(ms._synced_ranges[metric][3]['ets'],inner_ets2)
         self.assertEqual(ms._synced_ranges[metric][4]['its'],others[2][0])
         self.assertEqual(ms._synced_ranges[metric][4]['ets'],others[2][1])
-        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets)
+        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets, count=count)
         self.assertEqual(missing,[{'its':ets, 'ets':its}])
 
     @test.sync(loop)
@@ -848,10 +848,11 @@ class ApiModelStoreTest(unittest.TestCase):
         its = TimeUUID(10)
         ets = TimeUUID(100)
         metric = Datapoint('uri')
+        count = None
         ms = MetricStore()
         async def f():
             nonlocal its, ets, metric, ms
-            missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets)
+            missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets, count=count)
             self.assertEqual(missing,[{'its':its, 'ets':ets}])
             self.assertFalse(metric in ms._synced_ranges)
         async with Transaction(t) as tr:
@@ -868,11 +869,12 @@ class ApiModelStoreTest(unittest.TestCase):
         its = TimeUUID(1)
         ets = TimeUUID(100)
         metric = Datapoint('uri')
+        count = None
         ms = MetricStore()
         ms._hooked.add(metric)
         async def f():
             nonlocal its, ets, metric, ms
-            missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets)
+            missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets, count=count)
             self.assertEqual(missing,[{'its':its, 'ets':ets}])
             self.assertTrue(metric in ms._synced_ranges)
         async with Transaction(t) as tr:
@@ -895,6 +897,7 @@ class ApiModelStoreTest(unittest.TestCase):
         ets = TimeUUID(2, highest=True)
         metric = Datapoint('uri')
         ms = MetricStore()
+        count = None
         ms._hooked.add(metric)
         # add some synced ranges BEFORE the transaction has begun, this has effect to the synced ranges in tr
         ranges =[(TimeUUID(1),TimeUUID(3)),(TimeUUID(8),TimeUUID(10, lowest=True)),(TimeUUID(100, highest=True),TimeUUID(101))]
@@ -905,7 +908,7 @@ class ApiModelStoreTest(unittest.TestCase):
         t = TimeUUID()
         async def f():
             nonlocal its, ets, metric, ms
-            missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets)
+            missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets, count=count)
             self.assertEqual(missing,[])
         async with Transaction(t) as tr:
             await TransactionTask(coro=f(), tr=tr)
@@ -920,6 +923,7 @@ class ApiModelStoreTest(unittest.TestCase):
         its = TimeUUID(2, lowest=True)
         ets = TimeUUID(2, highest=True)
         metric = Datapoint('uri')
+        count = None
         ms = MetricStore()
         ms._hooked.add(metric)
         # add some synced ranges BEFORE the transaction has begun, this has effect to the synced ranges in tr
@@ -931,7 +935,7 @@ class ApiModelStoreTest(unittest.TestCase):
         t = TimeUUID()
         async def f():
             nonlocal its, ets, metric, ms
-            missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets)
+            missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets, count=count)
             self.assertEqual(missing,[{'its':its,'ets':ets}])
         async with Transaction(t) as tr:
             ranges =[(TimeUUID(1),TimeUUID(3))]
@@ -943,6 +947,462 @@ class ApiModelStoreTest(unittest.TestCase):
             self.assertTrue(metric in ms._tr_synced_ranges[tr.tid])
             self.assertEqual(len(ms._tr_synced_ranges[tr.tid][metric]), 2)
             self.assertEqual(len(ms._synced_ranges[metric]), 3)
+
+    @test.sync(loop)
+    async def test_get_missing_ranges_open_interval_its_none(self):
+        ''' get_missing_ranges should return the range (MIN_TIMEUUID - ets) '''
+        its = None
+        ets = TimeUUID()
+        metric = Datapoint('uri')
+        count = 100
+        ms = MetricStore()
+        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets, count=count)
+        self.assertEqual(missing,[{'its':MIN_TIMEUUID,'ets':ets}])
+
+    @test.sync(loop)
+    async def test_get_missing_ranges_open_interval_ets_none(self):
+        ''' get_missing_ranges should return the range (its, MAX_TIMEUUID) '''
+        its = TimeUUID()
+        ets = None
+        metric = Datapoint('uri')
+        count = 100
+        ms = MetricStore()
+        missing = ms._get_missing_ranges(metric=metric, its=its, ets=ets, count=count)
+        self.assertEqual(missing,[{'its':its,'ets':MAX_TIMEUUID}])
+
+    @test.sync(loop)
+    async def test_get_missing_ranges_open_interval_its_none_interleaved_synced_range_with_less_than_count_elem(self):
+        ''' get_missing_ranges should return the range til the interleaved synced range, and the range to MIN_TIMEUUID '''
+        try:
+            bck = prproc.request_data
+            metric = Datapoint('uri')
+            ms = MetricStore()
+            ms._hooked.add(metric)
+            # We are going to sync an interleaved range
+            i_its = TimeUUID(100, lowest=True)
+            i_ets = TimeUUID(200, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(100+i),100+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its, i_ets, None)
+            # the interval should be synced already
+            self.assertTrue(metric in ms._synced_ranges)
+            self.assertEqual(len(ms._synced_ranges[metric]),1)
+            # Now, lets get missing ranges in an open interval, with count higher than the num elements in synced one
+            t = TimeUUID()
+            count = 1000
+            missing = ms._get_missing_ranges(metric=metric, its=None, ets=t, count=count)
+            # we should receive two intervals, the one till the synced one and the one from the synced one to MIN_T
+            self.assertEqual(len(missing),2)
+            self.assertEqual(missing[0],{'its':i_ets, 'ets':t})
+            self.assertEqual(missing[1],{'its':MIN_TIMEUUID, 'ets':i_its})
+        except:
+            raise
+        finally:
+            prproc.request_data = bck
+
+    @test.sync(loop)
+    async def test_get_missing_ranges_open_interval_its_none_interleaved_synced_range_with_more_than_count_elem(self):
+        ''' get_missing_ranges should return the range til the interleaved synced range with enought count elem '''
+        try:
+            bck = prproc.request_data
+            metric = Datapoint('uri')
+            ms = MetricStore()
+            ms._hooked.add(metric)
+            # We are going to sync an interleaved range
+            i_its = TimeUUID(100, lowest=True)
+            i_ets = TimeUUID(200, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(100+i),100+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its, i_ets, None)
+            # the interval should be synced already
+            self.assertTrue(metric in ms._synced_ranges)
+            self.assertEqual(len(ms._synced_ranges[metric]),1)
+            # Now, lets get missing ranges in an open interval, with count higher than the num elements in synced one
+            t = TimeUUID()
+            count = 10
+            missing = ms._get_missing_ranges(metric=metric, its=None, ets=t, count=count)
+            # we should receive two intervals, the one till the synced one and the one from the synced one to MIN_T
+            self.assertEqual(len(missing),1)
+            self.assertEqual(missing[0],{'its':i_ets, 'ets':t})
+        except:
+            raise
+        finally:
+            prproc.request_data = bck
+
+    @test.sync(loop)
+    async def test_get_missing_ranges_open_interval_its_none_interleaved_synced_ranges_return_all(self):
+        ''' get_missing_ranges should return the all ranges because not enough elements '''
+        try:
+            bck = prproc.request_data
+            metric = Datapoint('uri')
+            ms = MetricStore()
+            ms._hooked.add(metric)
+            # We are going to sync an interleaved range (first)
+            i_its1 = TimeUUID(100, lowest=True)
+            i_ets1 = TimeUUID(200, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(100+i),100+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its1, i_ets1, None)
+            # We are going to sync an interleaved range (second)
+            i_its2 = TimeUUID(300, lowest=True)
+            i_ets2 = TimeUUID(400, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(300+i),300+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its2, i_ets2, None)
+            # the interval should be synced already
+            self.assertTrue(metric in ms._synced_ranges)
+            self.assertEqual(len(ms._synced_ranges[metric]),2)
+            # Now, lets get missing ranges in an open interval, with count higher than the num elements in synced ranges
+            t = TimeUUID()
+            count = 1000
+            missing = ms._get_missing_ranges(metric=metric, its=None, ets=t, count=count)
+            # we should receive three intervals:
+            # t -> i_ets2
+            # i_its2 -> i_ets1
+            # i_its1 -> MIN_TIMEUUID
+            self.assertEqual(len(missing),3)
+            self.assertEqual(missing[0],{'its':i_ets2, 'ets':t})
+            self.assertEqual(missing[1],{'its':i_ets1, 'ets':i_its2})
+            self.assertEqual(missing[2],{'its':MIN_TIMEUUID, 'ets':i_its1})
+        except:
+            raise
+        finally:
+            prproc.request_data = bck
+
+    @test.sync(loop)
+    async def test_get_missing_ranges_open_interval_its_none_interleaved_synced_ranges_return_closest(self):
+        ''' get_missing_ranges should return the only ranges to sum requested elements '''
+        try:
+            bck = prproc.request_data
+            metric = Datapoint('uri')
+            ms = MetricStore()
+            ms._hooked.add(metric)
+            # We are going to sync an interleaved range (first)
+            i_its1 = TimeUUID(100, lowest=True)
+            i_ets1 = TimeUUID(200, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(100+i),100+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its1, i_ets1, None)
+            # We are going to sync an interleaved range (second)
+            i_its2 = TimeUUID(300, lowest=True)
+            i_ets2 = TimeUUID(400, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(300+i),300+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its2, i_ets2, None)
+            # the interval should be synced already
+            self.assertTrue(metric in ms._synced_ranges)
+            self.assertEqual(len(ms._synced_ranges[metric]),2)
+            # Now, lets get missing ranges in an open interval, with count higher than the num elements in synced ranges
+            t = TimeUUID()
+            count = 10
+            missing = ms._get_missing_ranges(metric=metric, its=None, ets=t, count=count)
+            # we should receive one interval:
+            # t -> i_ets2
+            self.assertEqual(len(missing),1)
+            self.assertEqual(missing[0],{'its':i_ets2, 'ets':t})
+        except:
+            raise
+        finally:
+            prproc.request_data = bck
+
+    @test.sync(loop)
+    async def test_get_missing_ranges_open_interval_its_none_interleaved_synced_ranges_return_two(self):
+        ''' get_missing_ranges should return the two ranges until elements sum count '''
+        try:
+            bck = prproc.request_data
+            metric = Datapoint('uri')
+            ms = MetricStore()
+            ms._hooked.add(metric)
+            # We are going to sync an interleaved range (first)
+            i_its1 = TimeUUID(100, lowest=True)
+            i_ets1 = TimeUUID(200, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(100+i),100+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its1, i_ets1, None)
+            # We are going to sync an interleaved range (second)
+            i_its2 = TimeUUID(300, lowest=True)
+            i_ets2 = TimeUUID(400, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(300+i),300+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its2, i_ets2, None)
+            # the interval should be synced already
+            self.assertTrue(metric in ms._synced_ranges)
+            self.assertEqual(len(ms._synced_ranges[metric]),2)
+            # Now, lets get missing ranges in an open interval, with count higher than the num elements in synced ranges
+            t = TimeUUID()
+            count = 150
+            missing = ms._get_missing_ranges(metric=metric, its=None, ets=t, count=count)
+            # we should receive two intervals:
+            # t -> i_ets2
+            # i_its2 -> i_ets1
+            self.assertEqual(len(missing),2)
+            self.assertEqual(missing[0],{'its':i_ets2, 'ets':t})
+            self.assertEqual(missing[1],{'its':i_ets1, 'ets':i_its2})
+        except:
+            raise
+        finally:
+            prproc.request_data = bck
+
+    @test.sync(loop)
+    async def test_get_missing_ranges_open_interval_ets_none_interleaved_synced_range_with_less_than_count_elem(self):
+        ''' get_missing_ranges should return the range til the interleaved synced range, and the range to MAX_TIMEUUID '''
+        try:
+            bck = prproc.request_data
+            metric = Datapoint('uri')
+            ms = MetricStore()
+            ms._hooked.add(metric)
+            # We are going to sync an interleaved range
+            i_its = TimeUUID(100, lowest=True)
+            i_ets = TimeUUID(200, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(100+i),100+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its, i_ets, None)
+            # the interval should be synced already
+            self.assertTrue(metric in ms._synced_ranges)
+            self.assertEqual(len(ms._synced_ranges[metric]),1)
+            # Now, lets get missing ranges in an open interval, with count higher than the num elements in synced one
+            t = TimeUUID(1)
+            count = 1000
+            missing = ms._get_missing_ranges(metric=metric, its=t, ets=None, count=count)
+            # we should receive two intervals, the one till the synced one and the one from the synced one to MIN_T
+            self.assertEqual(len(missing),2)
+            self.assertEqual(missing[0],{'its':t, 'ets':i_its})
+            self.assertEqual(missing[1],{'its':i_ets, 'ets':MAX_TIMEUUID})
+        except:
+            raise
+        finally:
+            prproc.request_data = bck
+
+    @test.sync(loop)
+    async def test_get_missing_ranges_open_interval_its_none_interleaved_synced_range_with_more_than_count_elem(self):
+        ''' get_missing_ranges should return the range til the interleaved synced range with enought count elem '''
+        try:
+            bck = prproc.request_data
+            metric = Datapoint('uri')
+            ms = MetricStore()
+            ms._hooked.add(metric)
+            # We are going to sync an interleaved range
+            i_its = TimeUUID(100, lowest=True)
+            i_ets = TimeUUID(200, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(100+i),100+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its, i_ets, None)
+            # the interval should be synced already
+            self.assertTrue(metric in ms._synced_ranges)
+            self.assertEqual(len(ms._synced_ranges[metric]),1)
+            # Now, lets get missing ranges in an open interval, with count higher than the num elements in synced one
+            t = TimeUUID(1)
+            count = 10
+            missing = ms._get_missing_ranges(metric=metric, its=t, ets=None, count=count)
+            # we should receive two intervals, the one till the synced one and the one from the synced one to MIN_T
+            self.assertEqual(len(missing),1)
+            self.assertEqual(missing[0],{'its':t, 'ets':i_its})
+        except:
+            raise
+        finally:
+            prproc.request_data = bck
+
+    @test.sync(loop)
+    async def test_get_missing_ranges_open_interval_ets_none_interleaved_synced_ranges_return_all(self):
+        ''' get_missing_ranges should return the all ranges because not enough elements '''
+        try:
+            bck = prproc.request_data
+            metric = Datapoint('uri')
+            ms = MetricStore()
+            ms._hooked.add(metric)
+            # We are going to sync an interleaved range (first)
+            i_its1 = TimeUUID(100, lowest=True)
+            i_ets1 = TimeUUID(200, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(100+i),100+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its1, i_ets1, None)
+            # We are going to sync an interleaved range (second)
+            i_its2 = TimeUUID(300, lowest=True)
+            i_ets2 = TimeUUID(400, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(300+i),300+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its2, i_ets2, None)
+            # the interval should be synced already
+            self.assertTrue(metric in ms._synced_ranges)
+            self.assertEqual(len(ms._synced_ranges[metric]),2)
+            # Now, lets get missing ranges in an open interval, with count higher than the num elements in synced ranges
+            t = TimeUUID(1)
+            count = 1000
+            missing = ms._get_missing_ranges(metric=metric, its=t, ets=None, count=count)
+            # we should receive three intervals:
+            # t -> i_its1
+            # i_ets1 -> i_its2
+            # i_ets2 -> MAX_TIMEUUID
+            self.assertEqual(len(missing),3)
+            self.assertEqual(missing[0],{'its':t, 'ets':i_its1})
+            self.assertEqual(missing[1],{'its':i_ets1, 'ets':i_its2})
+            self.assertEqual(missing[2],{'its':i_ets2, 'ets':MAX_TIMEUUID})
+        except:
+            raise
+        finally:
+            prproc.request_data = bck
+
+    @test.sync(loop)
+    async def test_get_missing_ranges_open_interval_its_none_interleaved_synced_ranges_return_closest(self):
+        ''' get_missing_ranges should return the only ranges to sum requested elements '''
+        try:
+            bck = prproc.request_data
+            metric = Datapoint('uri')
+            ms = MetricStore()
+            ms._hooked.add(metric)
+            # We are going to sync an interleaved range (first)
+            i_its1 = TimeUUID(100, lowest=True)
+            i_ets1 = TimeUUID(200, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(100+i),100+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its1, i_ets1, None)
+            # We are going to sync an interleaved range (second)
+            i_its2 = TimeUUID(300, lowest=True)
+            i_ets2 = TimeUUID(400, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(300+i),300+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its2, i_ets2, None)
+            # the interval should be synced already
+            self.assertTrue(metric in ms._synced_ranges)
+            self.assertEqual(len(ms._synced_ranges[metric]),2)
+            # Now, lets get missing ranges in an open interval, with count higher than the num elements in synced ranges
+            t = TimeUUID(1)
+            count = 10
+            missing = ms._get_missing_ranges(metric=metric, its=t, ets=None, count=count)
+            # we should receive one interval:
+            # t -> i_its1
+            self.assertEqual(len(missing),1)
+            self.assertEqual(missing[0],{'its':t, 'ets':i_its1})
+        except:
+            raise
+        finally:
+            prproc.request_data = bck
+
+    @test.sync(loop)
+    async def test_get_missing_ranges_open_interval_its_none_interleaved_synced_ranges_return_two(self):
+        ''' get_missing_ranges should return the two ranges until elements sum count '''
+        try:
+            bck = prproc.request_data
+            metric = Datapoint('uri')
+            ms = MetricStore()
+            ms._hooked.add(metric)
+            # We are going to sync an interleaved range (first)
+            i_its1 = TimeUUID(100, lowest=True)
+            i_ets1 = TimeUUID(200, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(100+i),100+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its1, i_ets1, None)
+            # We are going to sync an interleaved range (second)
+            i_its2 = TimeUUID(300, lowest=True)
+            i_ets2 = TimeUUID(400, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(300+i),300+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its2, i_ets2, None)
+            # the interval should be synced already
+            self.assertTrue(metric in ms._synced_ranges)
+            self.assertEqual(len(ms._synced_ranges[metric]),2)
+            # Now, lets get missing ranges in an open interval, with count higher than the num elements in synced ranges
+            t = TimeUUID(1)
+            count = 150
+            missing = ms._get_missing_ranges(metric=metric, its=t, ets=None, count=count)
+            # we should receive two intervals:
+            # t -> i_its1
+            # i_ets1 -> i_its1
+            self.assertEqual(len(missing),2)
+            self.assertEqual(missing[0],{'its':t, 'ets':i_its1})
+            self.assertEqual(missing[1],{'its':i_ets1, 'ets':i_its2})
+        except:
+            raise
+        finally:
+            prproc.request_data = bck
+
+    @test.sync(loop)
+    async def test_get_with_count_param_dont_sync_more_intervals_if_requested_items_reach_count(self):
+        ''' get_missing_ranges should return the two ranges until elements sum count '''
+        try:
+            bck = prproc.request_data
+            metric = Datapoint('uri')
+            ms = MetricStore()
+            ms._hooked.add(metric)
+            # We are going to sync an interleaved range (first)
+            i_its1 = TimeUUID(100, lowest=True)
+            i_ets1 = TimeUUID(200, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(100+i),100+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its1, i_ets1, None)
+            # We are going to sync an interleaved range (second)
+            i_its2 = TimeUUID(500, lowest=True)
+            i_ets2 = TimeUUID(600, highest=True)
+            i_data = []
+            for i in range(1,100):
+                i_data.append((TimeUUID(500+i),500+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            await ms._request_data_range(metric, i_its2, i_ets2, None)
+            # the interval should be synced already
+            self.assertTrue(metric in ms._synced_ranges)
+            self.assertEqual(len(ms._synced_ranges[metric]),2)
+            # prepare the data we are going to return when we request data from Timeuuid(200) to TimeUUID(400)
+            i_data = []
+            for i in range(1,300):
+                i_data.append((TimeUUID(300+i),300+i))
+            prproc.request_data = test.AsyncMock(return_value = {'success':True,'data':i_data,'error':None})
+            # Now, lets get missing ranges in an open interval, with count higher than the num elements in synced ranges
+            t = TimeUUID(600, highest=True)
+            count = 250
+            missing = ms._get_missing_ranges(metric=metric, its=None, ets=t, count=count)
+            # we should receive two intervals theorically before requesting data:
+            # t -> i_its1
+            # i_ets1 -> i_its1
+            self.assertEqual(len(missing),2)
+            self.assertEqual(missing[0],{'its':i_ets1, 'ets':i_its2})
+            self.assertEqual(missing[1],{'its':MIN_TIMEUUID, 'ets':i_its1})
+            data = await ms.get(metric, end=t, count=20)
+            self.assertEqual(len(data),20)
+            self.assertEqual(len(ms._synced_ranges[metric]),2)
+            data = await ms.get(metric, end=t, count=200)
+            self.assertEqual(len(data),200)
+            self.assertEqual(len(ms._synced_ranges[metric]),3)
+            data = await ms.get(metric, end=t, count=2000)
+            self.assertEqual(len(data),497)
+            self.assertEqual(len(ms._synced_ranges[metric]),4)
+        except:
+            raise
+        finally:
+            prproc.request_data = bck
 
     @test.sync(loop)
     async def test_add_synced_range_failure_no_tr_no_hooked(self):
@@ -1241,11 +1701,11 @@ class ApiModelStoreTest(unittest.TestCase):
         for reg in regs:
             self.assertIsNone(ms._store(metric, reg['t'], reg['value'], tm=time.monotonic()))
         data = ms._get_metric_data(metric, its, ets, count)
-        self.assertIsNotNone(data)
-        for i,reg in enumerate(regs[3:5]):
-            self.assertEqual(data.iloc[i],regs[i+1]['value'])
-            self.assertEqual(data.index[i],regs[i+1]['t'])
-        self.assertEqual(len(data),count)
+        self.assertEqual(len(data),2)
+        self.assertEqual(data.iloc[0], 4)
+        self.assertEqual(data.iloc[1], 5)
+        self.assertEqual(data.index[0], regs[3]['t'])
+        self.assertEqual(data.index[1], regs[4]['t'])
 
     @test.sync(loop)
     async def test_get_metric_data_no_tr_some_data_found_in_interval_count_higher_than_data_length(self):
@@ -1492,11 +1952,11 @@ class ApiModelStoreTest(unittest.TestCase):
             for reg in regs:
                 self.assertIsNone(ms._store(metric, reg['t'], reg['value'], tm=time.monotonic(), op='g', tid=tr.tid))
             data = ms._get_metric_data(metric, its, ets, count)
-            self.assertIsNotNone(data)
-            for i,reg in enumerate(regs[3:5]):
-                self.assertEqual(data.iloc[i],regs[i+1]['value'])
-                self.assertEqual(data.index[i],regs[i+1]['t'])
             self.assertEqual(len(data),count)
+            self.assertEqual(data.iloc[0], 4)
+            self.assertEqual(data.iloc[1], 5)
+            self.assertEqual(data.index[0], regs[3]['t'])
+            self.assertEqual(data.index[1], regs[4]['t'])
         async with Transaction(t) as tr:
             await TransactionTask(coro=f(), tr=tr)
             self.assertTrue(tr.tid in ms._tr_dfs)
